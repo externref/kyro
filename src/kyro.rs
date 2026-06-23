@@ -1,4 +1,3 @@
-// src/kyro.rs
 use crate::{
     interpreter::{interpreter::Interpreter, runtime_error::RuntimeError},
     parser::{parser::Parser, resolver::Resolver, scanner::Scanner},
@@ -25,6 +24,8 @@ impl Kyro {
     }
 
     pub fn run_prompt(&mut self) -> std::io::Result<()> {
+        println!("kyro interactive prompt. press ctrl+d to exit.");
+        
         let stdin = std::io::stdin();
         loop {
             print!("> ");
