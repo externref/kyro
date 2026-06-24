@@ -1,0 +1,13 @@
+var io = use("std:io");
+
+fn main(){
+    io.println("hello, world!");
+}
+
+main();
+
+// externref@MSI:~/projects/kyro$ cargo run examples/hello.kyro
+//    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+//     Running `target/debug/kyro examples/hello.kyro`
+// hello, world!
+// externref@MSI:~/projects/kyro$ 

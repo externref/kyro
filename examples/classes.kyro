@@ -1,0 +1,34 @@
+var io = use("std:io");
+
+class Animal {
+    init(){
+        io.println("new animal");
+    }
+    do_sound(){
+        io.println("generic animal sound");
+    }
+}
+
+class Cat < Animal {
+    init(name){
+        super.init();
+        this.name = name;
+    }
+    do_sound(){
+        io.println("${this.name} says meow");
+    }
+}
+
+fn main(){
+    var cat = Cat("bob");
+    cat.do_sound();
+}
+
+main();
+
+// externref@MSI:~/projects/kyro$ cargo run examples/classes.kyro
+//     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+//      Running `target/debug/kyro examples/classes.kyro`
+// new animal
+// bob says meow
+// externref@MSI:~/projects/kyro$ 

@@ -1,0 +1,18 @@
+var io = use("std:io");
+
+fn add(x, y){
+    return x + y;
+}
+
+fn main(){
+    var sum = add(10, 20);
+    io.println("10+20=${sum}");
+}
+
+main();
+
+// externref@MSI:~/projects/kyro$ cargo run examples/math.kyro
+//     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+//      Running `target/debug/kyro examples/math.kyro`
+// 10+20=30
+// externref@MSI:~/projects/kyro$ 

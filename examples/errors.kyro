@@ -1,0 +1,32 @@
+var io = use("std:io");
+
+class Exception {
+    init(msg){
+        this.msg = msg;
+    }
+}
+
+fn divide(x, y){
+    if (y==0){
+        throw Exception("tried to divide ${x} by 0");
+    }
+    return x/y;
+}
+
+fn main(){
+    try {
+        io.println("20/4=${divide(20,4)}");
+        io.println("20/0=${divide(20,0)}");
+    } catch (err) {
+        io.println(err.msg);
+    }
+}
+
+main();
+
+// externref@MSI:~/projects/kyro$ cargo run examples/errors.kyro
+//     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+//      Running `target/debug/kyro examples/errors.kyro`
+// 20/4=5
+// tried to divide 20 by 0
+// externref@MSI:~/projects/kyro$ 
