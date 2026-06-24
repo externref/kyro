@@ -1,8 +1,35 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::Path;
+use std::rc::Rc;
+
 use crate::interpreter::{
-    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+    runtime_error::RuntimeError, value::Value,
 };
 use crate::parser::tokens::{Token, TokenType};
-use std::path::Path;
+
+pub fn get_module() -> Value {
+    let class = Rc::new(KyroClass {
+        name: "fs".to_string(),
+        superclass: None,
+        methods: HashMap::new(),
+    });
+    let mut fields = HashMap::new();
+    fields.insert("read_file".to_string(), Value::Callable(Rc::new(ReadFile)));
+    fields.insert(
+        "write_file".to_string(),
+        Value::Callable(Rc::new(WriteFile)),
+    );
+    fields.insert("exists".to_string(), Value::Callable(Rc::new(Exists)));
+    fields.insert(
+        "remove_file".to_string(),
+        Value::Callable(Rc::new(RemoveFile)),
+    );
+
+    let instance = KyroInstance { class, fields };
+    Value::Instance(Rc::new(RefCell::new(instance)))
+}
 
 pub struct ReadFile;
 

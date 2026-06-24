@@ -1,7 +1,8 @@
-pub mod core;
 pub mod fs;
 pub mod io;
+pub mod os;
 pub mod time;
+pub mod util;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,9 +17,6 @@ use crate::parser::resolver::Resolver;
 use crate::parser::scanner::Scanner;
 use crate::parser::tokens::{Token, TokenType};
 
-use core::{InfoFn, ToNumber, ToStringFn};
-use io::{Input, Print, Println};
-use time::{Clock, Format, Now};
 pub struct Use;
 
 impl KyroCallable for Use {
@@ -42,101 +40,67 @@ impl KyroCallable for Use {
             }
         };
 
-        if filename == "std:core" || filename == "core" {
-            let class = Rc::new(KyroClass {
-                name: "core".to_string(),
-                superclass: None,
-                methods: HashMap::new(),
-            });
-            let mut fields = HashMap::new();
-            fields.insert("version".to_string(), Value::String("0.1.0".to_string()));
-            fields.insert(
-                "to_string".to_string(),
-                Value::Callable(Rc::new(ToStringFn)),
-            );
-            fields.insert("to_number".to_string(), Value::Callable(Rc::new(ToNumber)));
-            fields.insert("info".to_string(), Value::Callable(Rc::new(InfoFn)));
-
-            let instance = KyroInstance { class, fields };
-            return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
+        if filename == "os" || filename == "std:os" {
+            return Ok(os::get_module());
         }
-
         if filename == "io" || filename == "std:io" {
-            let class = Rc::new(KyroClass {
-                name: "io".to_string(),
-                superclass: None,
-                methods: HashMap::new(),
-            });
-            let mut fields = HashMap::new();
-            fields.insert("print".to_string(), Value::Callable(Rc::new(Print)));
-            fields.insert("println".to_string(), Value::Callable(Rc::new(Println)));
-            fields.insert("input".to_string(), Value::Callable(Rc::new(Input)));
-
-            let instance = KyroInstance { class, fields };
-            return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
+            return Ok(io::get_module());
         }
-
         if filename == "time" || filename == "std:time" {
-            let class = Rc::new(KyroClass {
-                name: "time".to_string(),
-                superclass: None,
-                methods: HashMap::new(),
-            });
-            let mut fields = HashMap::new();
-            fields.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
-            fields.insert("now".to_string(), Value::Callable(Rc::new(Now)));
-            fields.insert("format".to_string(), Value::Callable(Rc::new(Format)));
-
-            let instance = KyroInstance { class, fields };
-            return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
+            return Ok(time::get_module());
         }
         if filename == "fs" || filename == "std:fs" {
-            let class = Rc::new(KyroClass {
-                name: "fs".to_string(),
-                superclass: None,
-                methods: HashMap::new(),
-            });
-            let mut fields = HashMap::new();
-            fields.insert(
-                "read_file".to_string(),
-                Value::Callable(Rc::new(fs::ReadFile)),
-            );
-            fields.insert(
-                "write_file".to_string(),
-                Value::Callable(Rc::new(fs::WriteFile)),
-            );
-            fields.insert("exists".to_string(), Value::Callable(Rc::new(fs::Exists)));
-            fields.insert(
-                "remove_file".to_string(),
-                Value::Callable(Rc::new(fs::RemoveFile)),
-            );
-
-            let instance = KyroInstance { class, fields };
-            return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
+            return Ok(fs::get_module());
+        }
+        if filename == "util" || filename == "std:util" {
+            return Ok(util::get_module());
         }
 
-        let file_content = match std::fs::read_to_string(filename) {
+        let resolved_filename = if filename.starts_with("lib:") {
+            let lib_name = &filename[4..];
+            let kyro_home = std::env::var("KYRO_HOME")
+                .unwrap_or_else(|_| ".".to_string());
+            
+            format!("{}/lib/{}.kyro", kyro_home, lib_name)
+        } else {
+            filename.clone()
+        };
+
+        let file_content = match std::fs::read_to_string(&resolved_filename) {
             Ok(content) => content,
             Err(e) => {
                 return Err(RuntimeError::new(
                     Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    format!("Failed to load module file '{filename}': {e}"),
+                    format!("Failed to load module file '{resolved_filename}': {e}"),
                 ));
             }
         };
 
-        let scanner = Scanner::new(file_content);
+        let scanner = Scanner::new(file_content.clone(), 1);
         let (tokens, scanner_errors) = scanner.scan_tokens();
         if !scanner_errors.is_empty() {
+            for (line, msg, lex) in scanner_errors {
+                report_module_error(&file_content, &resolved_filename, line, &lex, &msg);
+            }
             return Err(RuntimeError::new(
                 Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                format!("Lexical syntax errors found inside imported module '{filename}'."),
+                format!("Lexical syntax errors found inside imported module '{resolved_filename}'."),
             ));
         }
 
         let mut parser = Parser::new(tokens, interpreter.next_id);
         let statements = parser.parse();
         interpreter.next_id = parser.get_next_id_counter();
+
+        if !parser.errors.is_empty() {
+            for (token, message) in parser.errors {
+                report_module_error(&file_content, &resolved_filename, token.line, &token.lexeme, &message);
+            }
+            return Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                format!("Parsing errors found inside imported module '{resolved_filename}'."),
+            ));
+        }
 
         let module_env = Rc::new(RefCell::new(Environment::from_enclosing(
             interpreter.environment.clone(),
@@ -148,17 +112,29 @@ impl KyroCallable for Use {
         let resolve_success = resolver.resolve(&statements);
 
         if !resolve_success {
+            for (token, message) in resolver.errors {
+                report_module_error(&file_content, &resolved_filename, token.line, &token.lexeme, &message);
+            }
             interpreter.environment = previous_env;
             return Err(RuntimeError::new(
                 Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                format!("Static analysis resolution failed inside imported module '{filename}'."),
+                format!("Static analysis resolution failed inside imported module '{resolved_filename}'."),
             ));
         }
 
         for stmt in statements {
             if let Err(e) = interpreter.execute(&stmt) {
                 interpreter.environment = previous_env;
-                return Err(e);
+                match e {
+                    RuntimeError::Error { token, value } => {
+                        report_module_error(&file_content, &resolved_filename, token.line, &token.lexeme, &value.to_string());
+                        return Err(RuntimeError::new(
+                            Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                            format!("Runtime error inside imported module '{resolved_filename}'."),
+                        ));
+                    }
+                    _ => return Err(e),
+                }
             }
         }
 
@@ -183,4 +159,29 @@ impl KyroCallable for Use {
     fn name(&self) -> &str {
         "use"
     }
+}
+
+fn report_module_error(source: &str, filename: &str, line: usize, lexeme: &str, msg: &str) {
+    let lines: Vec<String> = source.lines().map(|s| s.to_string()).collect();
+    eprintln!("\x1b[1;31merror\x1b[0m: {msg}");
+
+    if line > 0 && line <= lines.len() {
+        let line_content = &lines[line - 1];
+        eprintln!("  --> {filename}:{line}:");
+        eprintln!("     |");
+        eprintln!("{:4} | {line_content}", line);
+
+        let col = if lexeme.is_empty() {
+            line_content.len()
+        } else {
+            line_content.find(lexeme).unwrap_or(0)
+        };
+
+        let padding = " ".repeat(col);
+        let carets = "^".repeat(lexeme.len().max(1));
+
+        eprintln!("     | {}\x1b[1;31m{}\x1b[0m", padding, carets);
+        eprintln!("     |");
+    }
+    eprintln!();
 }

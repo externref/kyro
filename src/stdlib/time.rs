@@ -4,9 +4,24 @@ use std::rc::Rc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::interpreter::{
-    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+    runtime_error::RuntimeError, value::Value,
 };
 
+pub fn get_module() -> Value {
+    let class = Rc::new(KyroClass {
+        name: "time".to_string(),
+        superclass: None,
+        methods: HashMap::new(),
+    });
+    let mut fields = HashMap::new();
+    fields.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
+    fields.insert("now".to_string(), Value::Callable(Rc::new(Now)));
+    fields.insert("format".to_string(), Value::Callable(Rc::new(Format)));
+
+    let instance = KyroInstance { class, fields };
+    Value::Instance(Rc::new(RefCell::new(instance)))
+}
 pub struct Clock;
 
 impl KyroCallable for Clock {

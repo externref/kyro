@@ -1,8 +1,28 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::{self, Write};
+use std::rc::Rc;
+
 use crate::interpreter::{
-    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+    runtime_error::RuntimeError, value::Value,
 };
 use crate::parser::tokens::{Token, TokenType};
-use std::io::{self, Write};
+
+pub fn get_module() -> Value {
+    let class = Rc::new(KyroClass {
+        name: "io".to_string(),
+        superclass: None,
+        methods: HashMap::new(),
+    });
+    let mut fields = HashMap::new();
+    fields.insert("print".to_string(), Value::Callable(Rc::new(Print)));
+    fields.insert("println".to_string(), Value::Callable(Rc::new(Println)));
+    fields.insert("input".to_string(), Value::Callable(Rc::new(Input)));
+
+    let instance = KyroInstance { class, fields };
+    Value::Instance(Rc::new(RefCell::new(instance)))
+}
 
 pub struct Print;
 
