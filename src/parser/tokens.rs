@@ -7,8 +7,9 @@ pub enum TokenType {
     Bang, BangEqual, Equal, EqualEqual,
     Greater, GreaterEqual, Less, LessEqual,
     Identifier, String, Number,
-    And, Class, Else, False, Fun, For, If, Nil, Or,
-    Echo, Return, Super, This, True, Var, While, 
+    And, Class, Else, False, Fn, For, If, Nil, Or,
+    Echo, Return, Super, This, True, Var, While,
+    Try, Catch, Throw, 
     Eof,
 }
 

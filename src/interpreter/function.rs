@@ -16,7 +16,7 @@ use crate::{
 pub struct KyroFunction {
     pub declaration: Stmt,
     pub closure: EnvRef,
-    pub is_initializer: bool, 
+    pub is_initializer: bool,
 }
 
 impl KyroFunction {

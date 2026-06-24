@@ -1,15 +1,16 @@
-use crate::{interpreter::value::Value, parser::tokens::Token};
+use crate::interpreter::value::Value;
+use crate::parser::tokens::Token;
 
 pub enum RuntimeError {
-    Error { token: Token, message: String },
-
+    Error { token: Token, value: Value },
     Return(Value),
 }
+
 impl RuntimeError {
     pub fn new(token: Token, message: impl Into<String>) -> Self {
         Self::Error {
             token,
-            message: message.into(),
+            value: Value::String(message.into()),
         }
     }
 }

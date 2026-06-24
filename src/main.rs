@@ -1,6 +1,7 @@
 mod interpreter;
 mod kyro;
 mod parser;
+mod primitives;
 mod stdlib;
 
 use kyro::Kyro;

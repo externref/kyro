@@ -3,7 +3,7 @@ use super::{expr::Expr, tokens::Token};
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expression(Expr),
-    Echo(Expr), 
+    Echo(Expr),
     Var {
         name: Token,
         initializer: Option<Expr>,
@@ -31,5 +31,14 @@ pub enum Stmt {
         name: Token,
         super_class: Option<Expr>,
         methods: Vec<Stmt>,
+    },
+    TryCatch {
+        try_branch: Box<Stmt>,
+        exception_var: Token,
+        catch_branch: Box<Stmt>,
+    },
+    Throw {
+        keyword: Token,
+        value: Expr,
     },
 }

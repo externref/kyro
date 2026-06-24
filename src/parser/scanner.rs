@@ -8,7 +8,7 @@ pub struct Scanner {
     current: usize,
     line: usize,
     keywords: HashMap<&'static str, TokenType>,
-    pub had_error: bool,
+    pub errors: Vec<(usize, String, String)>,
 }
 
 impl Scanner {
@@ -19,7 +19,7 @@ impl Scanner {
         keywords.insert("else", TokenType::Else);
         keywords.insert("false", TokenType::False);
         keywords.insert("for", TokenType::For);
-        keywords.insert("fun", TokenType::Fun);
+        keywords.insert("fn", TokenType::Fn);
         keywords.insert("if", TokenType::If);
         keywords.insert("nil", TokenType::Nil);
         keywords.insert("or", TokenType::Or);
@@ -30,6 +30,9 @@ impl Scanner {
         keywords.insert("true", TokenType::True);
         keywords.insert("var", TokenType::Var);
         keywords.insert("while", TokenType::While);
+        keywords.insert("try", TokenType::Try);
+        keywords.insert("catch", TokenType::Catch);
+        keywords.insert("throw", TokenType::Throw);
         Self {
             source: source.chars().collect(),
             tokens: Vec::new(),
@@ -37,18 +40,18 @@ impl Scanner {
             current: 0,
             line: 1,
             keywords,
-            had_error: false,
+            errors: Vec::new(),
         }
     }
 
-    pub fn scan_tokens(mut self) -> (Vec<Token>, bool) {
+    pub fn scan_tokens(mut self) -> (Vec<Token>, Vec<(usize, String, String)>) {
         while !self.is_at_end() {
             self.start = self.current;
             self.scan_token();
         }
         self.tokens
             .push(Token::new(TokenType::Eof, String::new(), None, self.line));
-        (self.tokens, self.had_error)
+        (self.tokens, self.errors)
     }
 
     fn scan_token(&mut self) {
@@ -128,7 +131,8 @@ impl Scanner {
                 } else if Self::is_alpha(c) {
                     self.identifier();
                 } else {
-                    self.error(self.line, "Unexpected character.");
+                    let err_char = c.to_string();
+                    self.error(self.line, "Unexpected character.", &err_char);
                 }
             }
         }
@@ -163,20 +167,41 @@ impl Scanner {
     }
 
     fn string(&mut self) {
+        let mut value = String::new();
+
         while self.peek() != '"' && !self.is_at_end() {
-            if self.peek() == '\n' {
+            let c = self.advance();
+            if c == '\n' {
                 self.line += 1;
+                value.push(c);
+            } else if c == '\\' {
+                if !self.is_at_end() {
+                    let next_c = self.advance();
+                    match next_c {
+                        'n' => value.push('\n'),
+                        't' => value.push('\t'),
+                        'r' => value.push('\r'),
+                        '\\' => value.push('\\'),
+                        '"' => value.push('"'),
+                        _ => {
+                            value.push('\\');
+                            value.push(next_c);
+                        }
+                    }
+                } else {
+                    value.push('\\');
+                }
+            } else {
+                value.push(c);
             }
-            self.advance();
         }
+
         if self.is_at_end() {
-            self.error(self.line, "Unterminated string.");
+            self.error(self.line, "Unterminated string.", "\"");
             return;
         }
+
         self.advance();
-        let value: String = self.source[self.start + 1..self.current - 1]
-            .iter()
-            .collect();
         self.add_token_literal(TokenType::String, Some(Literal::String(value)));
     }
 
@@ -239,8 +264,8 @@ impl Scanner {
         Self::is_alpha(c) || Self::is_digit(c)
     }
 
-    fn error(&mut self, line: usize, message: &str) {
-        eprintln!("[line {line}] Lexer Error: {message}");
-        self.had_error = true;
+    fn error(&mut self, line: usize, message: &str, lexeme: &str) {
+        self.errors
+            .push((line, message.to_string(), lexeme.to_string()));
     }
 }

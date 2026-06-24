@@ -1,7 +1,4 @@
-use std::{cell::RefCell,
-collections::HashMap,
-fmt,
-rc::Rc,};
+use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 use super::callable::KyroCallable;
 use super::class::KyroClass;
@@ -16,8 +13,8 @@ pub enum Value {
     Callable(Rc<dyn KyroCallable>),
     Class(Rc<KyroClass>),
     Instance(Rc<RefCell<KyroInstance>>),
-    List(Rc<RefCell<Vec<Value>>>), 
-    Dict(Rc<RefCell<HashMap<String, Value>>>), 
+    List(Rc<RefCell<Vec<Value>>>),
+    Dict(Rc<RefCell<HashMap<String, Value>>>),
 }
 
 impl fmt::Display for Value {

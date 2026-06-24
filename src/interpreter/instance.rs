@@ -1,6 +1,5 @@
 use crate::interpreter::{class::KyroClass, value::Value};
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct KyroInstance {
     pub class: Rc<KyroClass>,

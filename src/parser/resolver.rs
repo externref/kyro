@@ -24,7 +24,7 @@ pub struct Resolver<'a> {
     scopes: Vec<HashMap<String, bool>>,
     current_function: FunctionType,
     current_class: ClassType,
-    had_error: bool,
+    pub errors: Vec<(Token, String)>,
 }
 
 impl<'a> Resolver<'a> {
@@ -34,7 +34,7 @@ impl<'a> Resolver<'a> {
             scopes: Vec::new(),
             current_function: FunctionType::None,
             current_class: ClassType::None,
-            had_error: false,
+            errors: Vec::new(),
         }
     }
 
@@ -42,7 +42,7 @@ impl<'a> Resolver<'a> {
         for stmt in statements {
             self.resolve_stmt(stmt);
         }
-        !self.had_error
+        self.errors.is_empty()
     }
 
     fn resolve_stmt(&mut self, stmt: &Stmt) {
@@ -79,7 +79,6 @@ impl<'a> Resolver<'a> {
                 }
             }
             Stmt::Echo(expr) => {
-                // Changed from Stmt::Print
                 self.resolve_expr(expr);
             }
             Stmt::Return { keyword, value } => {
@@ -156,6 +155,21 @@ impl<'a> Resolver<'a> {
 
                 self.current_class = enclosing_class;
             }
+            Stmt::TryCatch {
+                try_branch,
+                exception_var,
+                catch_branch,
+            } => {
+                self.resolve_stmt(try_branch);
+                self.begin_scope();
+                self.declare(exception_var);
+                self.define(exception_var);
+                self.resolve_stmt(catch_branch);
+                self.end_scope();
+            }
+            Stmt::Throw { keyword: _, value } => {
+                self.resolve_expr(value);
+            }
         }
     }
 
@@ -226,11 +240,7 @@ impl<'a> Resolver<'a> {
     }
 
     fn error(&mut self, token: &Token, message: &str) {
-        eprintln!(
-            "[line {}] Error at '{}': {}",
-            token.line, token.lexeme, message
-        );
-        self.had_error = true;
+        self.errors.push((token.clone(), message.to_string()));
     }
 }
 
@@ -331,5 +341,11 @@ impl<'a> ExprVisitor<()> for Resolver<'a> {
         self.resolve_expr(object);
         self.resolve_expr(index);
         self.resolve_expr(value);
+    }
+
+    fn visit_interpolate(&mut self, parts: &[Expr], _id: usize) {
+        for part in parts {
+            self.resolve_expr(part);
+        }
     }
 }

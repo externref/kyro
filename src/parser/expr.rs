@@ -71,6 +71,10 @@ pub enum Expr {
         paren: Token,
         id: usize,
     },
+    Interpolate {
+        parts: Vec<Expr>,
+        id: usize,
+    },
 }
 
 pub trait ExprVisitor<T> {
@@ -97,6 +101,7 @@ pub trait ExprVisitor<T> {
         paren: &Token,
         id: usize,
     ) -> T;
+    fn visit_interpolate(&mut self, parts: &[Expr], id: usize) -> T;
 }
 
 impl Expr {
@@ -152,6 +157,7 @@ impl Expr {
                 paren,
                 id,
             } => visitor.visit_subscript_assign(object, index, value, paren, *id),
+            Expr::Interpolate { parts, id } => visitor.visit_interpolate(parts, *id),
         }
     }
 }

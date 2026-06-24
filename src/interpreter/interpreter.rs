@@ -1,6 +1,7 @@
 use super::environment::Environment;
 use crate::interpreter::class::KyroClass;
 use crate::interpreter::instance::KyroInstance;
+use crate::primitives;
 use crate::{
     interpreter::{
         callable::KyroCallable, environment::EnvRef, function::KyroFunction,
@@ -23,10 +24,12 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new() -> Self {
         let mut env = Environment::new();
+
         env.define(
             "use".to_string(),
             Value::Callable(Rc::new(crate::stdlib::Use)),
         );
+
         Self {
             environment: Rc::new(RefCell::new(env)),
             locals: HashMap::new(),
@@ -119,17 +122,18 @@ impl Interpreter {
                     if let Value::Class(cls) = val {
                         Some(cls)
                     } else {
-                        return Err(RuntimeError::Error {
-                            token: match super_expr {
+                        return Err(RuntimeError::new(
+                            match super_expr {
                                 Expr::Variable { name, .. } => name.clone(),
                                 _ => name.clone(),
                             },
-                            message: "Superclass must be a class.".to_string(),
-                        });
+                            "Superclass must be a class.",
+                        ));
                     }
                 } else {
                     None
                 };
+
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.clone(), Value::Nil);
@@ -140,7 +144,9 @@ impl Interpreter {
                     super_env.define("super".to_string(), Value::Class(supercls.clone()));
                     self.environment = Rc::new(RefCell::new(super_env));
                 }
+
                 let mut method_map = std::collections::HashMap::new();
+
                 for method in methods {
                     if let Stmt::Function { name: mname, .. } = method {
                         let is_initializer = mname.lexeme == "init";
@@ -149,21 +155,61 @@ impl Interpreter {
                             self.environment.clone(),
                             is_initializer,
                         );
+
                         method_map.insert(mname.lexeme.clone(), function);
                     }
                 }
+
                 let class = KyroClass {
                     name: name.lexeme.clone(),
                     superclass: superclass_val.clone(),
                     methods: method_map,
                 };
+
                 let class_val = Value::Class(Rc::new(class));
+
                 if super_class.is_some() {
                     self.environment = previous_env;
                 }
+
                 self.environment
                     .borrow_mut()
                     .assign(&name.lexeme, class_val);
+            }
+            Stmt::TryCatch {
+                try_branch,
+                exception_var,
+                catch_branch,
+            } => {
+                match self.execute(try_branch) {
+                    Ok(_) => {}
+
+                    Err(RuntimeError::Return(v)) => {
+                        return Err(RuntimeError::Return(v));
+                    }
+
+                    Err(RuntimeError::Error { token: _, value }) => {
+                        // Catches the raw Value directly [13.1]
+                        let catch_env = Rc::new(RefCell::new(Environment::from_enclosing(
+                            self.environment.clone(),
+                        )));
+                        catch_env
+                            .borrow_mut()
+                            .define(exception_var.lexeme.clone(), value); // Binds raw Value [13.1]
+
+                        let previous_env = std::mem::replace(&mut self.environment, catch_env);
+                        let result = self.execute(catch_branch);
+                        self.environment = previous_env;
+                        result?;
+                    }
+                }
+            }
+            Stmt::Throw { keyword, value } => {
+                let err_val = self.interpret(value)?;
+                return Err(RuntimeError::Error {
+                    token: keyword.clone(),
+                    value: err_val, // Returns the original Value without stringifying! [12.1]
+                });
             }
         }
         Ok(())
@@ -175,39 +221,45 @@ impl Interpreter {
         environment: EnvRef,
     ) -> Result<(), RuntimeError> {
         let previous = std::mem::replace(&mut self.environment, environment);
+
         for stmt in statements {
             match self.execute(stmt) {
                 Ok(_) => {}
+
                 Err(RuntimeError::Return(v)) => {
                     self.environment = previous;
                     return Err(RuntimeError::Return(v));
                 }
+
                 Err(e) => {
                     self.environment = previous;
                     return Err(e);
                 }
             }
         }
+
         self.environment = previous;
+
         Ok(())
     }
 
     fn look_up_variable(&self, name: &Token, id: usize) -> Result<Value, RuntimeError> {
         if let Some(distance) = self.locals.get(&id) {
             Environment::get_at(self.environment.clone(), *distance, &name.lexeme).ok_or_else(
-                || RuntimeError::Error {
-                    token: name.clone(),
-                    message: format!("Undefined variable '{}'.", name.lexeme),
+                || {
+                    RuntimeError::new(
+                        name.clone(),
+                        format!("Undefined variable '{}'.", name.lexeme),
+                    )
                 },
             )
         } else {
-            self.environment
-                .borrow()
-                .get(&name.lexeme)
-                .ok_or_else(|| RuntimeError::Error {
-                    token: name.clone(),
-                    message: format!("Undefined variable '{}'.", name.lexeme),
-                })
+            self.environment.borrow().get(&name.lexeme).ok_or_else(|| {
+                RuntimeError::new(
+                    name.clone(),
+                    format!("Undefined variable '{}'.", name.lexeme),
+                )
+            })
         }
     }
 }
@@ -250,10 +302,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         match operator.r#type {
             TokenType::Minus => match right {
                 Value::Number(n) => Ok(Value::Number(-n)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operand must be a number.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operand must be a number.",
+                )),
             },
             TokenType::Bang => Ok(Value::Bool(!is_truthy(&right))),
             _ => unreachable!(),
@@ -272,59 +324,59 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
             TokenType::Plus => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
                 (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be two numbers or two strings.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be two numbers or two strings.",
+                )),
             },
             TokenType::Minus => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::Star => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a * b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::Slash => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a / b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::Greater => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a > b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::GreaterEqual => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a >= b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::Less => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a < b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::LessEqual => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a <= b)),
-                _ => Err(RuntimeError::Error {
-                    token: operator.clone(),
-                    message: "Operands must be numbers.".to_string(),
-                }),
+                _ => Err(RuntimeError::new(
+                    operator.clone(),
+                    "Operands must be numbers.",
+                )),
             },
             TokenType::EqualEqual => Ok(Value::Bool(is_equal(&left, &right))),
             TokenType::BangEqual => Ok(Value::Bool(!is_equal(&left, &right))),
@@ -360,10 +412,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
             {
                 Ok(value)
             } else {
-                Err(RuntimeError::Error {
-                    token: name.clone(),
-                    message: format!("Undefined variable '{}'.", name.lexeme),
-                })
+                Err(RuntimeError::new(
+                    name.clone(),
+                    format!("Undefined variable '{}'.", name.lexeme),
+                ))
             }
         }
     }
@@ -389,6 +441,7 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
             }
             _ => unreachable!(),
         }
+
         right.accept(self)
     }
 
@@ -408,14 +461,14 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         match callee {
             Value::Callable(func) => {
                 if args.len() != func.arity() {
-                    return Err(RuntimeError::Error {
-                        token: paren.clone(),
-                        message: format!(
+                    return Err(RuntimeError::new(
+                        paren.clone(),
+                        format!(
                             "Expected {} arguments but got {}.",
                             func.arity(),
                             args.len()
                         ),
-                    });
+                    ));
                 }
 
                 func.call(self, args)
@@ -426,25 +479,29 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                     class: class.clone(),
                     fields: std::collections::HashMap::new(),
                 }));
+
                 let initializer = class.find_method("init");
                 let arity = initializer.as_ref().map(|i| i.arity()).unwrap_or(0);
+
                 if args.len() != arity {
-                    return Err(RuntimeError::Error {
-                        token: paren.clone(),
-                        message: format!("Expected {} arguments but got {}.", arity, args.len()),
-                    });
+                    return Err(RuntimeError::new(
+                        paren.clone(),
+                        format!("Expected {} arguments but got {}.", arity, args.len()),
+                    ));
                 }
+
                 if let Some(init) = initializer {
                     let bound = init.bind(instance.clone());
                     bound.call(self, args)?;
                 }
+
                 Ok(Value::Instance(instance))
             }
 
-            _ => Err(RuntimeError::Error {
-                token: paren.clone(),
-                message: "Can only call functions and classes.".to_string(),
-            }),
+            _ => Err(RuntimeError::new(
+                paren.clone(),
+                "Can only call functions and classes.",
+            )),
         }
     }
 
@@ -456,173 +513,25 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 if let Some(value) = instance.borrow().fields.get(&name.lexeme) {
                     return Ok(value.clone());
                 }
+
                 if let Some(method) = instance.borrow().class.find_method(&name.lexeme) {
                     let bound_method = method.bind(instance.clone());
                     return Ok(Value::Callable(Rc::new(bound_method)));
                 }
-                Err(RuntimeError::Error {
-                    token: name.clone(),
-                    message: format!("Undefined property '{}'.", name.lexeme),
-                })
+
+                Err(RuntimeError::new(
+                    name.clone(),
+                    format!("Undefined property '{}'.", name.lexeme),
+                ))
             }
-            Value::List(list) => match name.lexeme.as_str() {
-                "len" => {
-                    struct ListLen {
-                        list: Rc<RefCell<Vec<Value>>>,
-                    }
-                    impl KyroCallable for ListLen {
-                        fn arity(&self) -> usize {
-                            0
-                        }
-                        fn call(
-                            &self,
-                            _: &mut Interpreter,
-                            _: Vec<Value>,
-                        ) -> Result<Value, RuntimeError> {
-                            Ok(Value::Number(self.list.borrow().len() as f64))
-                        }
-                        fn name(&self) -> &str {
-                            "len"
-                        }
-                    }
-                    Ok(Value::Callable(Rc::new(ListLen { list: list.clone() })))
-                }
-                "push" => {
-                    struct ListPush {
-                        list: Rc<RefCell<Vec<Value>>>,
-                    }
-                    impl KyroCallable for ListPush {
-                        fn arity(&self) -> usize {
-                            1
-                        }
-                        fn call(
-                            &self,
-                            _: &mut Interpreter,
-                            args: Vec<Value>,
-                        ) -> Result<Value, RuntimeError> {
-                            self.list.borrow_mut().push(args[0].clone());
-                            Ok(Value::Nil)
-                        }
-                        fn name(&self) -> &str {
-                            "push"
-                        }
-                    }
-                    Ok(Value::Callable(Rc::new(ListPush { list: list.clone() })))
-                }
-                "pop" => {
-                    struct ListPop {
-                        list: Rc<RefCell<Vec<Value>>>,
-                    }
-                    impl KyroCallable for ListPop {
-                        fn arity(&self) -> usize {
-                            0
-                        }
-                        fn call(
-                            &self,
-                            _: &mut Interpreter,
-                            _: Vec<Value>,
-                        ) -> Result<Value, RuntimeError> {
-                            let val = self.list.borrow_mut().pop().unwrap_or(Value::Nil);
-                            Ok(val)
-                        }
-                        fn name(&self) -> &str {
-                            "pop"
-                        }
-                    }
-                    Ok(Value::Callable(Rc::new(ListPop { list: list.clone() })))
-                }
-                _ => Err(RuntimeError::Error {
-                    token: name.clone(),
-                    message: format!("Undefined list method '{}'.", name.lexeme),
-                }),
-            },
-            Value::Dict(dict) => match name.lexeme.as_str() {
-                "len" => {
-                    struct DictLen {
-                        dict: Rc<RefCell<HashMap<String, Value>>>,
-                    }
-                    impl KyroCallable for DictLen {
-                        fn arity(&self) -> usize {
-                            0
-                        }
-                        fn call(
-                            &self,
-                            _: &mut Interpreter,
-                            _: Vec<Value>,
-                        ) -> Result<Value, RuntimeError> {
-                            Ok(Value::Number(self.dict.borrow().len() as f64))
-                        }
-                        fn name(&self) -> &str {
-                            "len"
-                        }
-                    }
-                    Ok(Value::Callable(Rc::new(DictLen { dict: dict.clone() })))
-                }
-                "remove" => {
-                    struct DictRemove {
-                        dict: Rc<RefCell<HashMap<String, Value>>>,
-                    }
-                    impl KyroCallable for DictRemove {
-                        fn arity(&self) -> usize {
-                            1
-                        }
-                        fn call(
-                            &self,
-                            _: &mut Interpreter,
-                            args: Vec<Value>,
-                        ) -> Result<Value, RuntimeError> {
-                            let key_str = match &args[0] {
-                                Value::String(s) => s.clone(),
-                                _ => args[0].to_string(),
-                            };
-                            let removed = self
-                                .dict
-                                .borrow_mut()
-                                .remove(&key_str)
-                                .unwrap_or(Value::Nil);
-                            Ok(removed)
-                        }
-                        fn name(&self) -> &str {
-                            "remove"
-                        }
-                    }
-                    Ok(Value::Callable(Rc::new(DictRemove { dict: dict.clone() })))
-                }
-                "keys" => {
-                    struct DictKeys {
-                        dict: Rc<RefCell<HashMap<String, Value>>>,
-                    }
-                    impl KyroCallable for DictKeys {
-                        fn arity(&self) -> usize {
-                            0
-                        }
-                        fn call(
-                            &self,
-                            _: &mut Interpreter,
-                            _: Vec<Value>,
-                        ) -> Result<Value, RuntimeError> {
-                            let borrowed = self.dict.borrow();
-                            let mut keys = Vec::new();
-                            for key in borrowed.keys() {
-                                keys.push(Value::String(key.clone()));
-                            }
-                            Ok(Value::List(Rc::new(RefCell::new(keys))))
-                        }
-                        fn name(&self) -> &str {
-                            "keys"
-                        }
-                    }
-                    Ok(Value::Callable(Rc::new(DictKeys { dict: dict.clone() })))
-                }
-                _ => Err(RuntimeError::Error {
-                    token: name.clone(),
-                    message: format!("Undefined dictionary method '{}'.", name.lexeme),
-                }),
-            },
-            _ => Err(RuntimeError::Error {
-                token: name.clone(),
-                message: "Only instances have properties.".to_string(),
-            }),
+            Value::List(list) => primitives::get_list_method(list.clone(), name),
+            Value::Dict(dict) => primitives::get_dict_method(dict.clone(), name),
+            Value::String(s) => primitives::get_string_method(s.clone(), name),
+            Value::Number(n) => primitives::get_number_method(n, name),
+            _ => Err(RuntimeError::new(
+                name.clone(),
+                "Only instances, lists, dictionaries, strings, and numbers have properties.",
+            )),
         }
     }
 
@@ -645,10 +554,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 Ok(val)
             }
 
-            _ => Err(RuntimeError::Error {
-                token: name.clone(),
-                message: "Only instances have fields.".to_string(),
-            }),
+            _ => Err(RuntimeError::new(
+                name.clone(),
+                "Only instances have fields.",
+            )),
         }
     }
 
@@ -662,15 +571,19 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         method: &Token,
         id: usize,
     ) -> Result<Value, RuntimeError> {
-        let distance = self.locals.get(&id).ok_or_else(|| RuntimeError::Error {
-            token: keyword.clone(),
-            message: "Internal error: unresolved superclass expression.".to_string(),
+        let distance = self.locals.get(&id).ok_or_else(|| {
+            RuntimeError::new(
+                keyword.clone(),
+                "Internal error: unresolved superclass expression.",
+            )
         })?;
 
         let superclass_val = Environment::get_at(self.environment.clone(), *distance, "super")
-            .ok_or_else(|| RuntimeError::Error {
-                token: keyword.clone(),
-                message: "Internal error: superclass not found in environment.".to_string(),
+            .ok_or_else(|| {
+                RuntimeError::new(
+                    keyword.clone(),
+                    "Internal error: superclass not found in environment.",
+                )
             })?;
 
         let superclass = match superclass_val {
@@ -679,9 +592,11 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         };
 
         let instance_val = Environment::get_at(self.environment.clone(), *distance - 1, "this")
-            .ok_or_else(|| RuntimeError::Error {
-                token: keyword.clone(),
-                message: "Internal error: instance 'this' not found in environment.".to_string(),
+            .ok_or_else(|| {
+                RuntimeError::new(
+                    keyword.clone(),
+                    "Internal error: instance 'this' not found in environment.",
+                )
             })?;
 
         let instance = match instance_val {
@@ -693,10 +608,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
             let bound_method = superclass_method.bind(instance.clone());
             Ok(Value::Callable(Rc::new(bound_method)))
         } else {
-            Err(RuntimeError::Error {
-                token: method.clone(),
-                message: format!("Undefined property '{}'.", method.lexeme),
-            })
+            Err(RuntimeError::new(
+                method.clone(),
+                format!("Undefined property '{}'.", method.lexeme),
+            ))
         }
     }
 
@@ -738,19 +653,19 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 let num = match idx {
                     Value::Number(n) => n,
                     _ => {
-                        return Err(RuntimeError::Error {
-                            token: paren.clone(),
-                            message: "List index must be a number.".to_string(),
-                        });
+                        return Err(RuntimeError::new(
+                            paren.clone(),
+                            "List index must be a number.",
+                        ));
                     }
                 };
 
                 let i = num as usize;
                 if num < 0.0 || i >= borrowed.len() {
-                    return Err(RuntimeError::Error {
-                        token: paren.clone(),
-                        message: "List index out of bounds.".to_string(),
-                    });
+                    return Err(RuntimeError::new(
+                        paren.clone(),
+                        "List index out of bounds.",
+                    ));
                 }
                 Ok(borrowed[i].clone())
             }
@@ -766,10 +681,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                     Ok(Value::Nil)
                 }
             }
-            _ => Err(RuntimeError::Error {
-                token: paren.clone(),
-                message: "Only lists and dictionaries support subscript indexing.".to_string(),
-            }),
+            _ => Err(RuntimeError::new(
+                paren.clone(),
+                "Only lists and dictionaries support subscript indexing.",
+            )),
         }
     }
 
@@ -791,19 +706,19 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 let num = match idx {
                     Value::Number(n) => n,
                     _ => {
-                        return Err(RuntimeError::Error {
-                            token: paren.clone(),
-                            message: "List index must be a number.".to_string(),
-                        });
+                        return Err(RuntimeError::new(
+                            paren.clone(),
+                            "List index must be a number.",
+                        ));
                     }
                 };
 
                 let i = num as usize;
                 if num < 0.0 || i >= borrowed.len() {
-                    return Err(RuntimeError::Error {
-                        token: paren.clone(),
-                        message: "List index out of bounds.".to_string(),
-                    });
+                    return Err(RuntimeError::new(
+                        paren.clone(),
+                        "List index out of bounds.",
+                    ));
                 }
                 borrowed[i] = val.clone();
                 Ok(val)
@@ -817,10 +732,19 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 borrowed.insert(key_str, val.clone());
                 Ok(val)
             }
-            _ => Err(RuntimeError::Error {
-                token: paren.clone(),
-                message: "Only lists and dictionaries support subscript assignment.".to_string(),
-            }),
+            _ => Err(RuntimeError::new(
+                paren.clone(),
+                "Only lists and dictionaries support subscript assignment.",
+            )),
         }
+    }
+
+    fn visit_interpolate(&mut self, parts: &[Expr], _id: usize) -> Result<Value, RuntimeError> {
+        let mut result = String::new();
+        for part in parts {
+            let val = part.accept(self)?;
+            result.push_str(&val.to_string());
+        }
+        Ok(Value::String(result))
     }
 }
