@@ -4,6 +4,45 @@
 
 The [GRAMMAR.md](./GRAMMAR.md) features uses grammaer rules for the language, you can read [examples](./examples/) here.
 
+## installation
+
+### unix (linux, macos, wsl)
+
+1. make the installation script executable:
+   ```bash
+   chmod +x install.sh
+   ```
+
+2. execute the script to compile the binary, establish the folder structures, and configure the path variables:
+   ```bash
+   ./install.sh
+   ```
+
+3. reload your shell configuration file to apply the environment paths immediately:
+   ```bash
+   source ~/.bashrc
+   ```
+   *(or `source ~/.zshrc` if you are using zsh)*
+
+---
+
+### windows
+
+1. open powershell and navigate to the project directory.
+
+2. bypass the local execution policy for the current terminal session:
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+   ```
+
+3. execute the script to compile the binary, copy the executable, and write the path variables:
+   ```powershell
+   .\install.ps1
+   ```
+
+4. restart your powershell or command prompt window to activate the path changes.
+
+
 ### Hello, world!
 
 ```javascript
