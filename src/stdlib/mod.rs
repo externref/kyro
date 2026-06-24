@@ -1,3 +1,5 @@
+pub mod core;
+pub mod fs;
 pub mod io;
 pub mod time;
 
@@ -14,9 +16,9 @@ use crate::parser::resolver::Resolver;
 use crate::parser::scanner::Scanner;
 use crate::parser::tokens::{Token, TokenType};
 
+use core::{InfoFn, ToNumber, ToStringFn};
 use io::{Input, Print, Println};
-use time::Clock;
-
+use time::{Clock, Format, Now};
 pub struct Use;
 
 impl KyroCallable for Use {
@@ -33,13 +35,33 @@ impl KyroCallable for Use {
         let filename = match arg_val {
             Value::String(s) => s,
             _ => {
-                return Err(RuntimeError::Error {
-                    token: Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    message: "Argument to use() must be a string.".to_string(),
-                });
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                    "Argument to use() must be a string.",
+                ));
             }
         };
-        if filename == "io" {
+
+        if filename == "std:core" || filename == "core" {
+            let class = Rc::new(KyroClass {
+                name: "core".to_string(),
+                superclass: None,
+                methods: HashMap::new(),
+            });
+            let mut fields = HashMap::new();
+            fields.insert("version".to_string(), Value::String("0.1.0".to_string()));
+            fields.insert(
+                "to_string".to_string(),
+                Value::Callable(Rc::new(ToStringFn)),
+            );
+            fields.insert("to_number".to_string(), Value::Callable(Rc::new(ToNumber)));
+            fields.insert("info".to_string(), Value::Callable(Rc::new(InfoFn)));
+
+            let instance = KyroInstance { class, fields };
+            return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
+        }
+
+        if filename == "io" || filename == "std:io" {
             let class = Rc::new(KyroClass {
                 name: "io".to_string(),
                 superclass: None,
@@ -54,7 +76,7 @@ impl KyroCallable for Use {
             return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
         }
 
-        if filename == "time" {
+        if filename == "time" || filename == "std:time" {
             let class = Rc::new(KyroClass {
                 name: "time".to_string(),
                 superclass: None,
@@ -62,6 +84,32 @@ impl KyroCallable for Use {
             });
             let mut fields = HashMap::new();
             fields.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
+            fields.insert("now".to_string(), Value::Callable(Rc::new(Now)));
+            fields.insert("format".to_string(), Value::Callable(Rc::new(Format)));
+
+            let instance = KyroInstance { class, fields };
+            return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
+        }
+        if filename == "fs" || filename == "std:fs" {
+            let class = Rc::new(KyroClass {
+                name: "fs".to_string(),
+                superclass: None,
+                methods: HashMap::new(),
+            });
+            let mut fields = HashMap::new();
+            fields.insert(
+                "read_file".to_string(),
+                Value::Callable(Rc::new(fs::ReadFile)),
+            );
+            fields.insert(
+                "write_file".to_string(),
+                Value::Callable(Rc::new(fs::WriteFile)),
+            );
+            fields.insert("exists".to_string(), Value::Callable(Rc::new(fs::Exists)));
+            fields.insert(
+                "remove_file".to_string(),
+                Value::Callable(Rc::new(fs::RemoveFile)),
+            );
 
             let instance = KyroInstance { class, fields };
             return Ok(Value::Instance(Rc::new(RefCell::new(instance))));
@@ -70,22 +118,22 @@ impl KyroCallable for Use {
         let file_content = match std::fs::read_to_string(filename) {
             Ok(content) => content,
             Err(e) => {
-                return Err(RuntimeError::Error {
-                    token: Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    message: format!("Failed to load module file '{filename}': {e}"),
-                });
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                    format!("Failed to load module file '{filename}': {e}"),
+                ));
             }
         };
+
         let scanner = Scanner::new(file_content);
-        let (tokens, scanner_error) = scanner.scan_tokens();
-        if scanner_error {
-            return Err(RuntimeError::Error {
-                token: Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                message: format!(
-                    "Lexical syntax errors found inside imported module '{filename}'."
-                ),
-            });
+        let (tokens, scanner_errors) = scanner.scan_tokens();
+        if !scanner_errors.is_empty() {
+            return Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                format!("Lexical syntax errors found inside imported module '{filename}'."),
+            ));
         }
+
         let mut parser = Parser::new(tokens, interpreter.next_id);
         let statements = parser.parse();
         interpreter.next_id = parser.get_next_id_counter();
@@ -101,20 +149,19 @@ impl KyroCallable for Use {
 
         if !resolve_success {
             interpreter.environment = previous_env;
-            return Err(RuntimeError::Error {
-                token: Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                message: format!(
-                    "Static analysis resolution failed inside imported module '{filename}'."
-                ),
-            });
+            return Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                format!("Static analysis resolution failed inside imported module '{filename}'."),
+            ));
         }
+
         for stmt in statements {
             if let Err(e) = interpreter.execute(&stmt) {
-                // Restore scope before exiting
                 interpreter.environment = previous_env;
                 return Err(e);
             }
         }
+
         let module_values = module_env.borrow().get_values();
 
         interpreter.environment = previous_env;

@@ -4,53 +4,6 @@ use crate::interpreter::{
 use crate::parser::tokens::{Token, TokenType};
 use std::io::{self, Write};
 
-fn interpolate(format_str: &str, interpreter: &mut Interpreter) -> Result<String, RuntimeError> {
-    let dummy_token = Token::new(TokenType::Identifier, "print".to_string(), None, 0);
-
-    let mut result = String::new();
-    let mut chars = format_str.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '$' && chars.peek() == Some(&'{') {
-            chars.next();
-            let mut var_name = String::new();
-            let mut closed = false;
-
-            while let Some(inner_c) = chars.next() {
-                if inner_c == '}' {
-                    closed = true;
-                    break;
-                }
-                var_name.push(inner_c);
-            }
-
-            if !closed {
-                return Err(RuntimeError::Error {
-                    token: dummy_token.clone(),
-                    message: "Unterminated interpolation bracket.".to_string(),
-                });
-            }
-
-            let trimmed_name = var_name.trim();
-
-            if let Some(val) = interpreter.environment.borrow().get(trimmed_name) {
-                result.push_str(&val.to_string());
-            } else {
-                return Err(RuntimeError::Error {
-                    token: dummy_token.clone(),
-                    message: format!(
-                        "Undefined variable '{}' inside format string.",
-                        trimmed_name
-                    ),
-                });
-            }
-        } else {
-            result.push(c);
-        }
-    }
-    Ok(result)
-}
-
 pub struct Print;
 
 impl KyroCallable for Print {
@@ -60,16 +13,10 @@ impl KyroCallable for Print {
 
     fn call(
         &self,
-        interpreter: &mut Interpreter,
+        _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let format_val = &arguments[0];
-        let result = match format_val {
-            Value::String(s) => interpolate(s, interpreter)?,
-            _ => format_val.to_string(),
-        };
-
-        print!("{}", result);
+        print!("{}", arguments[0]);
         let _ = io::stdout().flush();
         Ok(Value::Nil)
     }
@@ -88,16 +35,10 @@ impl KyroCallable for Println {
 
     fn call(
         &self,
-        interpreter: &mut Interpreter,
+        _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let format_val = &arguments[0];
-        let result = match format_val {
-            Value::String(s) => interpolate(s, interpreter)?,
-            _ => format_val.to_string(),
-        };
-
-        println!("{}", result);
+        println!("{}", arguments[0]);
         Ok(Value::Nil)
     }
 
@@ -122,10 +63,10 @@ impl KyroCallable for Input {
         print!("{}", prompt_val);
 
         if let Err(e) = io::stdout().flush() {
-            return Err(RuntimeError::Error {
-                token: Token::new(TokenType::Identifier, "input".to_string(), None, 0),
-                message: format!("Failed to flush stdout: {e}"),
-            });
+            return Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "input".to_string(), None, 0),
+                format!("Failed to flush stdout: {e}"),
+            ));
         }
 
         let mut buffer = String::new();
@@ -136,10 +77,10 @@ impl KyroCallable for Input {
                     .to_string();
                 Ok(Value::String(trimmed))
             }
-            Err(e) => Err(RuntimeError::Error {
-                token: Token::new(TokenType::Identifier, "input".to_string(), None, 0),
-                message: format!("Failed to read input: {e}"),
-            }),
+            Err(e) => Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "input".to_string(), None, 0),
+                format!("Failed to read input: {e}"),
+            )),
         }
     }
 

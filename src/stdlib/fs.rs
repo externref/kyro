@@ -1,0 +1,146 @@
+use crate::interpreter::{
+    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+};
+use crate::parser::tokens::{Token, TokenType};
+use std::path::Path;
+
+pub struct ReadFile;
+
+impl KyroCallable for ReadFile {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "read_file".to_string(), None, 0),
+                    "Argument to read_file() must be a string path.",
+                ));
+            }
+        };
+
+        match std::fs::read_to_string(path) {
+            Ok(content) => Ok(Value::String(content)),
+            Err(e) => Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "read_file".to_string(), None, 0),
+                format!("Failed to read file '{path}': {e}"),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "read_file"
+    }
+}
+
+pub struct WriteFile;
+
+impl KyroCallable for WriteFile {
+    fn arity(&self) -> usize {
+        2
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "write_file".to_string(), None, 0),
+                    "First argument to write_file() must be a string path.",
+                ));
+            }
+        };
+
+        let content = &arguments[1].to_string();
+
+        match std::fs::write(path, content) {
+            Ok(_) => Ok(Value::Nil),
+            Err(e) => Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "write_file".to_string(), None, 0),
+                format!("Failed to write to file '{path}': {e}"),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "write_file"
+    }
+}
+
+pub struct Exists;
+
+impl KyroCallable for Exists {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "exists".to_string(), None, 0),
+                    "Argument to exists() must be a string path.",
+                ));
+            }
+        };
+
+        let path_exists = Path::new(path).exists();
+        Ok(Value::Bool(path_exists))
+    }
+
+    fn name(&self) -> &str {
+        "exists"
+    }
+}
+
+pub struct RemoveFile;
+
+impl KyroCallable for RemoveFile {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "remove_file".to_string(), None, 0),
+                    "Argument to remove_file() must be a string path.",
+                ));
+            }
+        };
+
+        match std::fs::remove_file(path) {
+            Ok(_) => Ok(Value::Nil),
+            Err(e) => Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "remove_file".to_string(), None, 0),
+                format!("Failed to delete file '{path}': {e}"),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "remove_file"
+    }
+}
