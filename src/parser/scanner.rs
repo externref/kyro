@@ -12,7 +12,7 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new(source: String) -> Self {
+    pub fn new(source: String, start_line: usize) -> Self {
         let mut keywords = HashMap::new();
         keywords.insert("and", TokenType::And);
         keywords.insert("class", TokenType::Class);
@@ -38,7 +38,7 @@ impl Scanner {
             tokens: Vec::new(),
             start: 0,
             current: 0,
-            line: 1,
+            line: start_line,
             keywords,
             errors: Vec::new(),
         }

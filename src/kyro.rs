@@ -1,6 +1,6 @@
 use crate::{
     interpreter::{interpreter::Interpreter, runtime_error::RuntimeError},
-    parser::{parser::Parser, resolver::Resolver, scanner::Scanner},
+    parser::{parser::Parser, scanner::Scanner, resolver::Resolver},
 };
 use std::io::Write;
 
@@ -27,7 +27,7 @@ impl Kyro {
 
     pub fn run_prompt(&mut self) -> std::io::Result<()> {
         println!("kyro interactive prompt. press ctrl+d to exit.");
-
+        
         let stdin = std::io::stdin();
         loop {
             print!("> ");
@@ -46,11 +46,11 @@ impl Kyro {
         self.source_lines = src.lines().map(|s| s.to_string()).collect();
         self.had_error = false;
 
-        let scanner = Scanner::new(src.to_string());
+        let scanner = Scanner::new(src.to_string(), 1); 
         let (tokens, scanner_errors) = scanner.scan_tokens();
         if !scanner_errors.is_empty() {
-            for (line, message, lexeme) in scanner_errors {
-                self.report_context_error(line, &lexeme, &message);
+            for (line, msg, lex) in scanner_errors {
+                self.report_context_error(line, &lex, &msg);
             }
             return;
         }
@@ -106,8 +106,8 @@ impl Kyro {
             let padding = " ".repeat(col);
             let carets = "^".repeat(lexeme.len().max(1));
 
-            eprintln!("   | {}\x1b[1;31m{}\x1b[0m", padding, carets);
-            eprintln!("   |");
+            eprintln!("     | {}\x1b[1;31m{}\x1b[0m", padding, carets);
+            eprintln!("     |");
         }
         eprintln!();
         self.had_error = true;

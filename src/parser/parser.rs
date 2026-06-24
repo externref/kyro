@@ -698,7 +698,7 @@ impl Parser {
                     return Err(self.error(token, "Unterminated interpolation bracket."));
                 }
 
-                let scanner = Scanner::new(expr_str);
+                let scanner = Scanner::new(expr_str, token.line);
                 let (tokens, scanner_errors) = scanner.scan_tokens();
                 if !scanner_errors.is_empty() {
                     return Err(self.error(token, "Syntax error inside interpolation block."));

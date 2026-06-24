@@ -12,12 +12,8 @@ fn main() -> std::io::Result<()> {
         1 => {
             kyro.run_prompt()?;
         }
-        2 => {
-            kyro.run_file(&args[1])?;
-        }
         _ => {
-            eprintln!("Usage: kyro [script].kyro");
-            std::process::exit(64);
+            kyro.run_file(&args[1])?;
         }
     }
     Ok(())
