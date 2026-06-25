@@ -1,0 +1,31 @@
+{
+  "name": "kyro",
+  "displayName": "kyro",
+  "description": "syntax highlighting for the kyro language",
+  "version": "0.1.0",
+  "publisher": "externref",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "kyro",
+        "aliases": ["Kyro", "kyro"],
+        "extensions": [".kyro"],
+        "configuration": "./language.conf.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kyro",
+        "scopeName": "source.kyro",
+        "path": "./syntaxes/kyro.tmLanguage.json"
+      }
+    ]
+  }
+}
