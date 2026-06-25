@@ -1,4 +1,7 @@
 # kyro
+<p align="center">
+  <img src="assets/icon.svg" width="120" alt="kyro logo">
+</p>
 
 `kyro` is toy language inspired by [The Lox Language](https://craftinginterpreters.com/the-lox-language.html) built in rust, it uses similar base components but diverts from implementation. 
 
