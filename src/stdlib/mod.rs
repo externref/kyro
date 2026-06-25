@@ -40,120 +40,146 @@ impl KyroCallable for Use {
             }
         };
 
-        if filename == "os" || filename == "std:os" {
-            return Ok(os::get_module());
-        }
-        if filename == "io" || filename == "std:io" {
-            return Ok(io::get_module());
-        }
-        if filename == "time" || filename == "std:time" {
-            return Ok(time::get_module());
-        }
-        if filename == "fs" || filename == "std:fs" {
-            return Ok(fs::get_module());
-        }
-        if filename == "util" || filename == "std:util" {
-            return Ok(util::get_module());
+        if let Some(cached_module) = interpreter.modules.get(filename) {
+            return Ok(cached_module.clone());
         }
 
-        let resolved_filename = if filename.starts_with("lib:") {
-            let lib_name = &filename[4..];
-            let kyro_home = std::env::var("KYRO_HOME")
-                .unwrap_or_else(|_| ".".to_string());
-            
-            format!("{}/lib/{}.kyro", kyro_home, lib_name)
+        let module_instance = if filename == "os" || filename == "std:os" {
+            os::get_module()
+        } else if filename == "io" || filename == "std:io" {
+            io::get_module()
+        } else if filename == "time" || filename == "std:time" {
+            time::get_module()
+        } else if filename == "fs" || filename == "std:fs" {
+            fs::get_module()
+        } else if filename == "util" || filename == "std:util" {
+            util::get_module()
         } else {
-            filename.clone()
-        };
+            let resolved_filename = if filename.starts_with("lib:") {
+                let lib_name = &filename[4..];
+                let kyro_home = std::env::var("KYRO_HOME").unwrap_or_else(|_| ".".to_string());
 
-        let file_content = match std::fs::read_to_string(&resolved_filename) {
-            Ok(content) => content,
-            Err(e) => {
+                format!("{}/lib/{}.kyro", kyro_home, lib_name)
+            } else {
+                filename.clone()
+            };
+
+            let file_content = match std::fs::read_to_string(&resolved_filename) {
+                Ok(content) => content,
+                Err(e) => {
+                    return Err(RuntimeError::new(
+                        Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                        format!("Failed to load module file '{resolved_filename}': {e}"),
+                    ));
+                }
+            };
+
+            let scanner = Scanner::new(file_content.clone(), 1);
+            let (tokens, scanner_errors) = scanner.scan_tokens();
+            if !scanner_errors.is_empty() {
+                for (line, msg, lex) in scanner_errors {
+                    report_module_error(&file_content, &resolved_filename, line, &lex, &msg);
+                }
                 return Err(RuntimeError::new(
                     Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    format!("Failed to load module file '{resolved_filename}': {e}"),
+                    format!(
+                        "Lexical syntax errors found inside imported module '{resolved_filename}'."
+                    ),
                 ));
             }
-        };
 
-        let scanner = Scanner::new(file_content.clone(), 1);
-        let (tokens, scanner_errors) = scanner.scan_tokens();
-        if !scanner_errors.is_empty() {
-            for (line, msg, lex) in scanner_errors {
-                report_module_error(&file_content, &resolved_filename, line, &lex, &msg);
+            let mut parser = Parser::new(tokens, interpreter.next_id);
+            let statements = parser.parse();
+            interpreter.next_id = parser.get_next_id_counter();
+
+            if !parser.errors.is_empty() {
+                for (token, message) in parser.errors {
+                    report_module_error(
+                        &file_content,
+                        &resolved_filename,
+                        token.line,
+                        &token.lexeme,
+                        &message,
+                    );
+                }
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                    format!("Parsing errors found inside imported module '{resolved_filename}'."),
+                ));
             }
-            return Err(RuntimeError::new(
-                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                format!("Lexical syntax errors found inside imported module '{resolved_filename}'."),
-            ));
-        }
 
-        let mut parser = Parser::new(tokens, interpreter.next_id);
-        let statements = parser.parse();
-        interpreter.next_id = parser.get_next_id_counter();
+            let module_env = Rc::new(RefCell::new(Environment::from_enclosing(
+                interpreter.environment.clone(),
+            )));
 
-        if !parser.errors.is_empty() {
-            for (token, message) in parser.errors {
-                report_module_error(&file_content, &resolved_filename, token.line, &token.lexeme, &message);
-            }
-            return Err(RuntimeError::new(
-                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                format!("Parsing errors found inside imported module '{resolved_filename}'."),
-            ));
-        }
+            let previous_env = std::mem::replace(&mut interpreter.environment, module_env.clone());
 
-        let module_env = Rc::new(RefCell::new(Environment::from_enclosing(
-            interpreter.environment.clone(),
-        )));
+            let mut resolver = Resolver::new(interpreter);
+            let resolve_success = resolver.resolve(&statements);
 
-        let previous_env = std::mem::replace(&mut interpreter.environment, module_env.clone());
-
-        let mut resolver = Resolver::new(interpreter);
-        let resolve_success = resolver.resolve(&statements);
-
-        if !resolve_success {
-            for (token, message) in resolver.errors {
-                report_module_error(&file_content, &resolved_filename, token.line, &token.lexeme, &message);
-            }
-            interpreter.environment = previous_env;
-            return Err(RuntimeError::new(
-                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                format!("Static analysis resolution failed inside imported module '{resolved_filename}'."),
-            ));
-        }
-
-        for stmt in statements {
-            if let Err(e) = interpreter.execute(&stmt) {
+            if !resolve_success {
+                for (token, message) in resolver.errors {
+                    report_module_error(
+                        &file_content,
+                        &resolved_filename,
+                        token.line,
+                        &token.lexeme,
+                        &message,
+                    );
+                }
                 interpreter.environment = previous_env;
-                match e {
-                    RuntimeError::Error { token, value } => {
-                        report_module_error(&file_content, &resolved_filename, token.line, &token.lexeme, &value.to_string());
-                        return Err(RuntimeError::new(
-                            Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                            format!("Runtime error inside imported module '{resolved_filename}'."),
-                        ));
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                    format!(
+                        "Static analysis resolution failed inside imported module '{resolved_filename}'."
+                    ),
+                ));
+            }
+
+            for stmt in statements {
+                if let Err(e) = interpreter.execute(&stmt) {
+                    interpreter.environment = previous_env;
+                    match e {
+                        RuntimeError::Error { token, value } => {
+                            report_module_error(
+                                &file_content,
+                                &resolved_filename,
+                                token.line,
+                                &token.lexeme,
+                                &value.to_string(),
+                            );
+                            return Err(RuntimeError::new(
+                                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                                format!(
+                                    "Runtime error inside imported module '{resolved_filename}'."
+                                ),
+                            ));
+                        }
+                        _ => return Err(e),
                     }
-                    _ => return Err(e),
                 }
             }
-        }
 
-        let module_values = module_env.borrow().get_values();
+            let module_values = module_env.borrow().get_values();
 
-        interpreter.environment = previous_env;
+            interpreter.environment = previous_env;
 
-        let class = Rc::new(KyroClass {
-            name: filename.to_string(),
-            superclass: None,
-            methods: HashMap::new(),
-        });
+            let class = Rc::new(KyroClass {
+                name: filename.to_string(),
+                superclass: None,
+                methods: HashMap::new(),
+            });
 
-        let instance = KyroInstance {
-            class,
-            fields: module_values,
+            Value::Instance(Rc::new(RefCell::new(KyroInstance {
+                class,
+                fields: module_values,
+            })))
         };
 
-        Ok(Value::Instance(Rc::new(RefCell::new(instance))))
+        interpreter
+            .modules
+            .insert(filename.clone(), module_instance.clone());
+        Ok(module_instance)
     }
 
     fn name(&self) -> &str {

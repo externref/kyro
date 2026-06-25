@@ -1,6 +1,6 @@
 use crate::{
     interpreter::{interpreter::Interpreter, runtime_error::RuntimeError},
-    parser::{parser::Parser, scanner::Scanner, resolver::Resolver},
+    parser::{parser::Parser, resolver::Resolver, scanner::Scanner},
 };
 use std::io::Write;
 
@@ -27,7 +27,7 @@ impl Kyro {
 
     pub fn run_prompt(&mut self) -> std::io::Result<()> {
         println!("kyro interactive prompt. press ctrl+d to exit.");
-        
+
         let stdin = std::io::stdin();
         loop {
             print!("> ");
@@ -46,7 +46,7 @@ impl Kyro {
         self.source_lines = src.lines().map(|s| s.to_string()).collect();
         self.had_error = false;
 
-        let scanner = Scanner::new(src.to_string(), 1); 
+        let scanner = Scanner::new(src.to_string(), 1);
         let (tokens, scanner_errors) = scanner.scan_tokens();
         if !scanner_errors.is_empty() {
             for (line, msg, lex) in scanner_errors {

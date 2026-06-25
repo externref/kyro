@@ -19,6 +19,7 @@ pub struct Interpreter {
     pub environment: EnvRef,
     pub locals: HashMap<usize, usize>,
     pub next_id: usize,
+    pub modules: HashMap<String, Value>,
 }
 
 impl Interpreter {
@@ -34,6 +35,7 @@ impl Interpreter {
             environment: Rc::new(RefCell::new(env)),
             locals: HashMap::new(),
             next_id: 0,
+            modules: HashMap::new(),
         }
     }
 
@@ -180,35 +182,32 @@ impl Interpreter {
                 try_branch,
                 exception_var,
                 catch_branch,
-            } => {
-                match self.execute(try_branch) {
-                    Ok(_) => {}
+            } => match self.execute(try_branch) {
+                Ok(_) => {}
 
-                    Err(RuntimeError::Return(v)) => {
-                        return Err(RuntimeError::Return(v));
-                    }
-
-                    Err(RuntimeError::Error { token: _, value }) => {
-                        // Catches the raw Value directly [13.1]
-                        let catch_env = Rc::new(RefCell::new(Environment::from_enclosing(
-                            self.environment.clone(),
-                        )));
-                        catch_env
-                            .borrow_mut()
-                            .define(exception_var.lexeme.clone(), value); // Binds raw Value [13.1]
-
-                        let previous_env = std::mem::replace(&mut self.environment, catch_env);
-                        let result = self.execute(catch_branch);
-                        self.environment = previous_env;
-                        result?;
-                    }
+                Err(RuntimeError::Return(v)) => {
+                    return Err(RuntimeError::Return(v));
                 }
-            }
+
+                Err(RuntimeError::Error { token: _, value }) => {
+                    let catch_env = Rc::new(RefCell::new(Environment::from_enclosing(
+                        self.environment.clone(),
+                    )));
+                    catch_env
+                        .borrow_mut()
+                        .define(exception_var.lexeme.clone(), value);
+
+                    let previous_env = std::mem::replace(&mut self.environment, catch_env);
+                    let result = self.execute(catch_branch);
+                    self.environment = previous_env;
+                    result?;
+                }
+            },
             Stmt::Throw { keyword, value } => {
                 let err_val = self.interpret(value)?;
                 return Err(RuntimeError::Error {
                     token: keyword.clone(),
-                    value: err_val, // Returns the original Value without stringifying! [12.1]
+                    value: err_val,
                 });
             }
         }
