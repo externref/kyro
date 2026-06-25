@@ -1,0 +1,302 @@
+class JSONParser {
+  init(json_str) {
+    this.chars = json_str.split("");
+    this.current = 0;
+    this.len = this.chars.len();
+  }
+
+  parse() {
+    this.skip_whitespace();
+    var val = this.parse_value();
+    this.skip_whitespace();
+    return val;
+  }
+
+  skip_whitespace() {
+    while (this.current < this.len) {
+      var c = this.chars[this.current];
+      if (c == " " or c == "\n" or c == "\t" or c == "\r" or c == "") {
+        this.current = this.current + 1;
+      } else {
+        return nil;
+      }
+    }
+  }
+
+  parse_value() {
+    this.skip_whitespace();
+    if (this.current >= this.len) {
+      return nil;
+    }
+    var c = this.chars[this.current];
+    if (c == "{") {
+      return this.parse_object();
+    }
+    if (c == "[") {
+      return this.parse_array();
+    }
+    if (c == '"') {
+      return this.parse_string();
+    }
+    if (c == "t" or c == "f") {
+      return this.parse_boolean();
+    }
+    if (c == "n") {
+      return this.parse_null();
+    }
+    return this.parse_number();
+  }
+
+  parse_object() {
+    this.current = this.current + 1;
+    this.skip_whitespace();
+    var obj = {};
+    if (this.chars[this.current] == "}") {
+      this.current = this.current + 1;
+      return obj;
+    }
+    while (true) {
+      this.skip_whitespace();
+      if (this.chars[this.current] != '"') {
+        return nil;
+      }
+      var key = this.parse_string();
+      this.skip_whitespace();
+      if (this.chars[this.current] != ":") {
+        return nil;
+      }
+      this.current = this.current + 1;
+      var val = this.parse_value();
+      obj[key] = val;
+      this.skip_whitespace();
+      var next_c = this.chars[this.current];
+      if (next_c == "}") {
+        this.current = this.current + 1;
+        return obj;
+      }
+      if (next_c == ",") {
+        this.current = this.current + 1;
+      } else {
+        return nil;
+      }
+    }
+  }
+
+  parse_array() {
+    this.current = this.current + 1;
+    this.skip_whitespace();
+    var arr = [];
+    if (this.chars[this.current] == "]") {
+      this.current = this.current + 1;
+      return arr;
+    }
+    while (true) {
+      var val = this.parse_value();
+      arr.push(val);
+      this.skip_whitespace();
+      var next_c = this.chars[this.current];
+      if (next_c == "]") {
+        this.current = this.current + 1;
+        return arr;
+      }
+      if (next_c == ",") {
+        this.current = this.current + 1;
+      } else {
+        return nil;
+      }
+    }
+  }
+
+  parse_string() {
+    this.current = this.current + 1;
+    var s = "";
+    while (this.current < this.len) {
+      var c = this.chars[this.current];
+      if (c == '"') {
+        this.current = this.current + 1;
+        return s;
+      }
+      if (c == "\\") {
+        this.current = this.current + 1;
+        var next_c = this.chars[this.current];
+        if (next_c == "n") {
+          s = s + "\n";
+        } else if (next_c == "t") {
+          s = s + "\t";
+        } else {
+          s = s + next_c;
+        }
+      } else {
+        s = s + c;
+      }
+      this.current = this.current + 1;
+    }
+    return s;
+  }
+
+  parse_boolean() {
+    var c = this.chars[this.current];
+    if (c == "t") {
+      this.current = this.current + 4;
+      return true;
+    } else {
+      this.current = this.current + 5;
+      return false;
+    }
+  }
+
+  parse_null() {
+    this.current = this.current + 4;
+    return nil;
+  }
+
+  parse_number() {
+    var s_num = "";
+    var charset = "-0123456789.eE+";
+    var dict_charset = {};
+    var chars_split = charset.split("");
+    for (var i = 0; i < chars_split.len(); i = i + 1) {
+      var ch = chars_split[i];
+      if (ch != "") {
+        dict_charset[ch] = true;
+      }
+    }
+    while (this.current < this.len) {
+      var c = this.chars[this.current];
+      if (dict_charset[c] != nil) {
+        s_num = s_num + c;
+        this.current = this.current + 1;
+      } else {
+        break;
+      }
+    }
+    var util = use("std:util");
+    return util.to_number(s_num);
+  }
+}
+
+fn get_type(val) {
+  if (val == nil) {
+    return "nil";
+  }
+  if (val == true or val == false) {
+    return "bool";
+  }
+  try {
+    var p = val.push;
+    return "list";
+  } catch (e) {}
+  try {
+    var k = val.keys;
+    return "dict";
+  } catch (e) {}
+  try {
+    var s = val.slice;
+    return "string";
+  } catch (e) {}
+  try {
+    var f = val.floor;
+    return "number";
+  } catch (e) {}
+  return "object";
+}
+
+fn make_indent(indent, depth) {
+  if (indent == nil) {
+    return "";
+  }
+  var spaces = "";
+  var count = indent * depth;
+  for (var i = 0; i < count; i = i + 1) {
+    spaces = spaces + " ";
+  }
+  return spaces;
+}
+
+fn dumps_indent(value, indent, depth) {
+  var t = get_type(value);
+  if (t == "nil") {
+    return "null";
+  }
+  if (t == "bool") {
+    if (value) {
+      return "true";
+    }
+    return "false";
+  }
+  if (t == "number") {
+    var util = use("std:util");
+    return util.to_string(value);
+  }
+  if (t == "string") {
+    return "\"" + value + "\"";
+  }
+  if (t == "list") {
+    if (value.len() == 0) {
+      return "[]";
+    }
+    var next_indent = make_indent(indent, depth + 1);
+    var curr_indent = make_indent(indent, depth);
+    var newline = "";
+    if (indent != nil) {
+      newline = "\n";
+    }
+    var s = "[" + newline;
+    for (var i = 0; i < value.len(); i = i + 1) {
+      s = s + next_indent + dumps_indent(value[i], indent, depth + 1);
+      if (i < value.len() - 1) {
+        s = s + ",";
+      }
+      s = s + newline;
+    }
+    s = s + curr_indent + "]";
+    return s;
+  }
+  if (t == "dict") {
+    var keys = value.keys();
+    if (keys.len() == 0) {
+      return "{}";
+    }
+    var next_indent = make_indent(indent, depth + 1);
+    var curr_indent = make_indent(indent, depth);
+    var newline = "";
+    var spacing = "";
+    if (indent != nil) {
+      newline = "\n";
+      spacing = " ";
+    }
+    var s = "{" + newline;
+    for (var i = 0; i < keys.len(); i = i + 1) {
+      var k = keys[i];
+      s = s + next_indent + "\"" + k + "\":" + spacing + dumps_indent(value[k], indent, depth + 1);
+      if (i < keys.len() - 1) {
+        s = s + ",";
+      }
+      s = s + newline;
+    }
+    s = s + curr_indent + "}";
+    return s;
+  }
+  return "{}";
+}
+
+fn loads(json_str) {
+  var parser = JSONParser(json_str);
+  return parser.parse();
+}
+
+fn dumps(value, indent) {
+  return dumps_indent(value, indent, 0);
+}
+
+fn load(filepath) {
+  var fs = use("std:fs");
+  var content = fs.read_file(filepath);
+  return loads(content);
+}
+
+fn dump(value, filepath, indent) {
+  var fs = use("std:fs");
+  var s = dumps(value, indent);
+  fs.write_file(filepath, s);
+}
