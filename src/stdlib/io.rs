@@ -14,8 +14,10 @@ pub fn get_module() -> Value {
         name: "io".to_string(),
         superclass: None,
         methods: HashMap::new(),
+        doc: None,
     });
     let mut fields = HashMap::new();
+    fields.insert("__name__".to_string(), Value::String("std:io".to_string()));
     fields.insert("print".to_string(), Value::Callable(Rc::new(Print)));
     fields.insert("println".to_string(), Value::Callable(Rc::new(Println)));
     fields.insert("input".to_string(), Value::Callable(Rc::new(Input)));

@@ -13,8 +13,13 @@ pub fn get_module() -> Value {
         name: "time".to_string(),
         superclass: None,
         methods: HashMap::new(),
+        doc: None,
     });
     let mut fields = HashMap::new();
+    fields.insert(
+        "__name__".to_string(),
+        Value::String("std:time".to_string()),
+    );
     fields.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
     fields.insert("now".to_string(), Value::Callable(Rc::new(Now)));
     fields.insert("format".to_string(), Value::Callable(Rc::new(Format)));

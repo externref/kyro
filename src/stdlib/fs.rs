@@ -14,8 +14,11 @@ pub fn get_module() -> Value {
         name: "fs".to_string(),
         superclass: None,
         methods: HashMap::new(),
+        doc: None,
     });
     let mut fields = HashMap::new();
+
+    fields.insert("__name__".to_string(), Value::String("std:fs".to_string()));
     fields.insert("read_file".to_string(), Value::Callable(Rc::new(ReadFile)));
     fields.insert(
         "write_file".to_string(),

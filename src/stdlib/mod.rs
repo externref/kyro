@@ -112,6 +112,10 @@ impl KyroCallable for Use {
                 interpreter.environment.clone(),
             )));
 
+            module_env
+                .borrow_mut()
+                .define("__name__".to_string(), Value::String(filename.clone()));
+
             let previous_env = std::mem::replace(&mut interpreter.environment, module_env.clone());
 
             let mut resolver = Resolver::new(interpreter);
@@ -168,6 +172,7 @@ impl KyroCallable for Use {
                 name: filename.to_string(),
                 superclass: None,
                 methods: HashMap::new(),
+                doc: None,
             });
 
             Value::Instance(Rc::new(RefCell::new(KyroInstance {
@@ -210,4 +215,115 @@ fn report_module_error(source: &str, filename: &str, line: usize, lexeme: &str, 
         eprintln!("     |");
     }
     eprintln!();
+}
+
+pub struct DirFn;
+
+impl KyroCallable for DirFn {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let mut names = Vec::new();
+        match &arguments[0] {
+            Value::Instance(instance) => {
+                let inst = instance.borrow();
+                for key in inst.fields.keys() {
+                    names.push(Value::String(key.clone()));
+                }
+                let mut current_class = Some(inst.class.clone());
+                while let Some(cls) = current_class {
+                    for key in cls.methods.keys() {
+                        names.push(Value::String(key.clone()));
+                    }
+                    current_class = cls.superclass.clone();
+                }
+            }
+            Value::Class(class) => {
+                let mut current_class = Some(class.clone());
+                while let Some(cls) = current_class {
+                    for key in cls.methods.keys() {
+                        names.push(Value::String(key.clone()));
+                    }
+                    current_class = cls.superclass.clone();
+                }
+                names.push(Value::String("__name__".to_string()));
+            }
+            Value::Callable(_) => {
+                names.push(Value::String("__name__".to_string()));
+            }
+            Value::List(_) => {
+                for method in &["len", "push", "pop"] {
+                    names.push(Value::String(method.to_string()));
+                }
+            }
+            Value::Dict(_) => {
+                for method in &["len", "keys", "remove"] {
+                    names.push(Value::String(method.to_string()));
+                }
+            }
+            Value::String(_) => {
+                for method in &["len", "slice", "split"] {
+                    names.push(Value::String(method.to_string()));
+                }
+            }
+            Value::Number(_) => {
+                for method in &["floor", "ceil", "round", "abs", "to_string"] {
+                    names.push(Value::String(method.to_string()));
+                }
+            }
+            _ => {}
+        }
+
+        let mut str_names: Vec<String> = names
+            .into_iter()
+            .map(|v| match v {
+                Value::String(s) => s,
+                _ => unreachable!(),
+            })
+            .collect();
+        str_names.sort();
+        str_names.dedup();
+
+        let deduped_vals: Vec<Value> = str_names.into_iter().map(Value::String).collect();
+        Ok(Value::List(Rc::new(RefCell::new(deduped_vals))))
+    }
+
+    fn name(&self) -> &str {
+        "dir"
+    }
+}
+
+pub struct IdFn;
+
+impl KyroCallable for IdFn {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let address = match &arguments[0] {
+            Value::Instance(instance) => Rc::as_ptr(instance) as usize,
+            Value::List(list) => Rc::as_ptr(list) as usize,
+            Value::Dict(dict) => Rc::as_ptr(dict) as usize,
+            Value::Class(class) => Rc::as_ptr(class) as usize,
+            Value::Callable(callable) => Rc::as_ptr(callable) as *const () as usize,
+            Value::String(s) => s.as_ptr() as usize,
+            val => val as *const Value as usize,
+        };
+        Ok(Value::Number(address as f64))
+    }
+
+    fn name(&self) -> &str {
+        "id"
+    }
 }

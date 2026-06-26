@@ -8,14 +8,20 @@ use crate::interpreter::{
 };
 use crate::parser::tokens::{Token, TokenType};
 
+static VERSION: &'static str = include_str!("../.version");
+
 pub fn get_module() -> Value {
     let class = Rc::new(KyroClass {
         name: "util".to_string(),
         superclass: None,
         methods: HashMap::new(),
+        doc: Some("Utility functions for the language.".to_string()),
     });
     let mut fields = HashMap::new();
-    fields.insert("version".to_string(), Value::String("0.1.0".to_string()));
+    fields.insert(
+        "__name__".to_string(),
+        Value::String("std:util".to_string()),
+    );
     fields.insert(
         "to_string".to_string(),
         Value::Callable(Rc::new(ToStringFn)),
@@ -104,11 +110,12 @@ impl KyroCallable for InfoFn {
             name: "LanguageInfo".to_string(),
             superclass: None,
             methods: HashMap::new(),
+            doc: None,
         });
 
         let mut fields = HashMap::new();
         fields.insert("language".to_string(), Value::String("kyro".to_string()));
-        fields.insert("version".to_string(), Value::String("0.1.0".to_string()));
+        fields.insert("version".to_string(), Value::String(VERSION.to_string()));
 
         let instance = KyroInstance { class, fields };
         Ok(Value::Instance(Rc::new(RefCell::new(instance))))
@@ -116,5 +123,9 @@ impl KyroCallable for InfoFn {
 
     fn name(&self) -> &str {
         "info"
+    }
+
+    fn doc(&self) -> Option<&str> {
+        return Some("info about the language");
     }
 }
