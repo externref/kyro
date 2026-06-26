@@ -1,3 +1,4 @@
 /target
 /.venv
+/site
 test.kyro
