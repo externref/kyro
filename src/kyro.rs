@@ -83,6 +83,7 @@ impl Kyro {
                         self.report_context_error(token.line, &token.lexeme, &value.to_string());
                     }
                     RuntimeError::Return(_) => {}
+                    RuntimeError::Break | RuntimeError::Continue => {}
                 }
             }
         }
