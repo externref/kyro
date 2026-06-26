@@ -10,4 +10,8 @@ pub trait KyroCallable {
     ) -> Result<Value, RuntimeError>;
 
     fn name(&self) -> &str;
+
+    fn doc(&self) -> Option<&str> {
+        None
+    }
 }

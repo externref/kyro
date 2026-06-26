@@ -25,6 +25,7 @@ pub struct Resolver<'a> {
     current_function: FunctionType,
     current_class: ClassType,
     pub errors: Vec<(Token, String)>,
+    is_inside_loop: bool,
 }
 
 impl<'a> Resolver<'a> {
@@ -35,6 +36,7 @@ impl<'a> Resolver<'a> {
             current_function: FunctionType::None,
             current_class: ClassType::None,
             errors: Vec::new(),
+            is_inside_loop: false,
         }
     }
 
@@ -59,7 +61,12 @@ impl<'a> Resolver<'a> {
                 }
                 self.define(name);
             }
-            Stmt::Function { name, params, body } => {
+            Stmt::Function {
+                name,
+                params,
+                body,
+                doc: _,
+            } => {
                 self.declare(name);
                 self.define(name);
                 self.resolve_function(params, body, FunctionType::Function);
@@ -93,13 +100,51 @@ impl<'a> Resolver<'a> {
                 }
             }
             Stmt::While { condition, body } => {
+                let enclosing_loop = self.is_inside_loop;
+                self.is_inside_loop = true;
                 self.resolve_expr(condition);
                 self.resolve_stmt(body);
+                self.is_inside_loop = enclosing_loop;
+            }
+            Stmt::For {
+                initializer,
+                condition,
+                increment,
+                body,
+            } => {
+                let enclosing_loop = self.is_inside_loop;
+                self.is_inside_loop = true;
+
+                self.begin_scope();
+
+                if let Some(init) = initializer {
+                    self.resolve_stmt(init);
+                }
+                self.resolve_expr(condition);
+                if let Some(inc) = increment {
+                    self.resolve_expr(inc);
+                }
+                self.resolve_stmt(body);
+
+                self.end_scope();
+
+                self.is_inside_loop = enclosing_loop;
+            }
+            Stmt::Break { keyword } => {
+                if !self.is_inside_loop {
+                    self.error(keyword, "Can't use 'break' outside of a loop.");
+                }
+            }
+            Stmt::Continue { keyword } => {
+                if !self.is_inside_loop {
+                    self.error(keyword, "Can't use 'continue' outside of a loop.");
+                }
             }
             Stmt::Class {
                 name,
                 super_class,
                 methods,
+                doc: _,
             } => {
                 let enclosing_class = self.current_class;
                 self.current_class = ClassType::Class;
@@ -136,6 +181,7 @@ impl<'a> Resolver<'a> {
                         name: mname,
                         params,
                         body,
+                        doc: _,
                     } = method
                     {
                         let declaration_type = if mname.lexeme == "init" {
@@ -161,6 +207,7 @@ impl<'a> Resolver<'a> {
                 catch_branch,
             } => {
                 self.resolve_stmt(try_branch);
+
                 self.begin_scope();
                 self.declare(exception_var);
                 self.define(exception_var);

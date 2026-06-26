@@ -22,6 +22,7 @@ pub enum Stmt {
         name: Token,
         params: Vec<Token>,
         body: Vec<Stmt>,
+        doc: Option<String>,
     },
     Return {
         keyword: Token,
@@ -31,6 +32,7 @@ pub enum Stmt {
         name: Token,
         super_class: Option<Expr>,
         methods: Vec<Stmt>,
+        doc: Option<String>,
     },
     TryCatch {
         try_branch: Box<Stmt>,
@@ -40,5 +42,17 @@ pub enum Stmt {
     Throw {
         keyword: Token,
         value: Expr,
+    },
+    For {
+        initializer: Option<Box<Stmt>>,
+        condition: Expr,
+        increment: Option<Expr>,
+        body: Box<Stmt>,
+    },
+    Break {
+        keyword: Token,
+    },
+    Continue {
+        keyword: Token,
     },
 }

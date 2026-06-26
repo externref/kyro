@@ -22,13 +22,31 @@ pub struct Interpreter {
     pub modules: HashMap<String, Value>,
 }
 
+static VERSION: &'static str = include_str!("../.version");
+
 impl Interpreter {
     pub fn new() -> Self {
         let mut env = Environment::new();
 
         env.define(
+            "__version__".to_string(),
+            Value::String(VERSION.to_string()),
+        );
+        env.define(
             "use".to_string(),
             Value::Callable(Rc::new(crate::stdlib::Use)),
+        );
+        env.define(
+            "__name__".to_string(),
+            Value::String("__main__".to_string()),
+        );
+        env.define(
+            "id".to_string(),
+            Value::Callable(Rc::new(crate::stdlib::IdFn)),
+        );
+        env.define(
+            "dir".to_string(),
+            Value::Callable(Rc::new(crate::stdlib::DirFn)),
         );
 
         Self {
@@ -90,11 +108,62 @@ impl Interpreter {
             }
             Stmt::While { condition, body } => {
                 while is_truthy(&self.interpret(condition)?) {
-                    self.execute(body)?;
+                    match self.execute(body) {
+                        Ok(_) => {}
+                        Err(RuntimeError::Break) => break,
+                        Err(RuntimeError::Continue) => continue,
+                        Err(e) => return Err(e),
+                    }
                 }
             }
-            Stmt::Function { .. } => {
-                let function = KyroFunction::new(stmt.clone(), self.environment.clone(), false);
+            Stmt::For {
+                initializer,
+                condition,
+                increment,
+                body,
+            } => {
+                let previous_env = self.environment.clone();
+                let loop_env = Rc::new(RefCell::new(Environment::from_enclosing(
+                    self.environment.clone(),
+                )));
+                self.environment = loop_env;
+
+                let mut run_loop = || -> Result<(), RuntimeError> {
+                    if let Some(init) = initializer {
+                        self.execute(init)?;
+                    }
+                    while is_truthy(&self.interpret(condition)?) {
+                        match self.execute(body) {
+                            Ok(_) => {}
+                            Err(RuntimeError::Break) => break,
+                            Err(RuntimeError::Continue) => {}
+                            Err(e) => return Err(e),
+                        }
+                        if let Some(inc) = increment {
+                            self.interpret(inc)?;
+                        }
+                    }
+                    Ok(())
+                };
+
+                let result = run_loop();
+                self.environment = previous_env;
+                result?;
+            }
+            Stmt::Break { keyword: _ } => {
+                return Err(RuntimeError::Break);
+            }
+            Stmt::Continue { keyword: _ } => {
+                return Err(RuntimeError::Continue);
+            }
+            Stmt::Function {
+                name: _,
+                params: _,
+                body: _,
+                doc,
+            } => {
+                let function =
+                    KyroFunction::new(stmt.clone(), self.environment.clone(), false, doc.clone());
 
                 let name = match stmt {
                     Stmt::Function { name, .. } => name.lexeme.clone(),
@@ -118,6 +187,7 @@ impl Interpreter {
                 name,
                 super_class,
                 methods,
+                doc,
             } => {
                 let superclass_val = if let Some(super_expr) = super_class {
                     let val = self.interpret(super_expr)?;
@@ -150,12 +220,18 @@ impl Interpreter {
                 let mut method_map = std::collections::HashMap::new();
 
                 for method in methods {
-                    if let Stmt::Function { name: mname, .. } = method {
+                    if let Stmt::Function {
+                        name: mname,
+                        doc: mdoc,
+                        ..
+                    } = method
+                    {
                         let is_initializer = mname.lexeme == "init";
                         let function = KyroFunction::new(
                             method.clone(),
                             self.environment.clone(),
                             is_initializer,
+                            mdoc.clone(),
                         );
 
                         method_map.insert(mname.lexeme.clone(), function);
@@ -166,6 +242,7 @@ impl Interpreter {
                     name: name.lexeme.clone(),
                     superclass: superclass_val.clone(),
                     methods: method_map,
+                    doc: doc.clone(),
                 };
 
                 let class_val = Value::Class(Rc::new(class));
@@ -202,6 +279,8 @@ impl Interpreter {
                     self.environment = previous_env;
                     result?;
                 }
+                Err(RuntimeError::Break) => return Err(RuntimeError::Break),
+                Err(RuntimeError::Continue) => return Err(RuntimeError::Continue),
             },
             Stmt::Throw { keyword, value } => {
                 let err_val = self.interpret(value)?;
@@ -509,6 +588,19 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
 
         match obj {
             Value::Instance(instance) => {
+                if name.lexeme == "__class__" {
+                    return Ok(Value::Class(instance.borrow().class.clone()));
+                }
+
+                if name.lexeme == "__doc__" {
+                    let class_borrow = instance.borrow();
+                    let doc_val = match &class_borrow.class.doc {
+                        Some(doc_str) => Value::String(doc_str.clone()),
+                        None => Value::Nil,
+                    };
+                    return Ok(doc_val);
+                }
+
                 if let Some(value) = instance.borrow().fields.get(&name.lexeme) {
                     return Ok(value.clone());
                 }
@@ -527,6 +619,38 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
             Value::Dict(dict) => primitives::get_dict_method(dict.clone(), name),
             Value::String(s) => primitives::get_string_method(s.clone(), name),
             Value::Number(n) => primitives::get_number_method(n, name),
+            Value::Callable(callable) => {
+                if name.lexeme == "__name__" {
+                    Ok(Value::String(callable.name().to_string()))
+                } else if name.lexeme == "__doc__" {
+                    let doc_val = match callable.doc() {
+                        Some(doc_str) => Value::String(doc_str.to_string()),
+                        None => Value::Nil,
+                    };
+                    Ok(doc_val)
+                } else {
+                    Err(RuntimeError::new(
+                        name.clone(),
+                        format!("Undefined property '{}' on callable.", name.lexeme),
+                    ))
+                }
+            }
+            Value::Class(class) => {
+                if name.lexeme == "__name__" {
+                    Ok(Value::String(class.name.clone()))
+                } else if name.lexeme == "__doc__" {
+                    let doc_val = match &class.doc {
+                        Some(doc_str) => Value::String(doc_str.clone()),
+                        None => Value::Nil,
+                    };
+                    Ok(doc_val)
+                } else {
+                    Err(RuntimeError::new(
+                        name.clone(),
+                        format!("Undefined property '{}' on class.", name.lexeme),
+                    ))
+                }
+            }
             _ => Err(RuntimeError::new(
                 name.clone(),
                 "Only instances, lists, dictionaries, strings, and numbers have properties.",

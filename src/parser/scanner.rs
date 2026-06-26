@@ -33,6 +33,8 @@ impl Scanner {
         keywords.insert("try", TokenType::Try);
         keywords.insert("catch", TokenType::Catch);
         keywords.insert("throw", TokenType::Throw);
+        keywords.insert("break", TokenType::Break);
+        keywords.insert("continue", TokenType::Continue);
         Self {
             source: source.chars().collect(),
             tokens: Vec::new(),

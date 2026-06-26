@@ -13,6 +13,7 @@ pub struct Parser {
     current: usize,
     next_id: usize,
     pub errors: Vec<(Token, String)>,
+    pub module_doc: Option<String>,
 }
 
 impl Parser {
@@ -22,6 +23,7 @@ impl Parser {
             current: 0,
             next_id: start_id,
             errors: Vec::new(),
+            module_doc: None,
         }
     }
 
@@ -41,6 +43,13 @@ impl Parser {
         while !self.is_at_end() {
             if let Some(stmt) = self.declaration() {
                 statements.push(stmt);
+            }
+        }
+
+        if !statements.is_empty() {
+            if let Stmt::Expression(Expr::Literal(Literal::String(s))) = &statements[0] {
+                self.module_doc = Some(s.clone());
+                statements.remove(0);
             }
         }
 
@@ -83,19 +92,25 @@ impl Parser {
         };
 
         self.consume(TokenType::LeftBrace, "Expect '{' before class body.")?;
-
+        let mut doc = None;
+        if self.check(&TokenType::String) {
+            let token = self.advance().clone();
+            if let Some(Literal::String(s)) = &token.literal {
+                doc = Some(s.clone());
+                self.consume(TokenType::Semicolon, "Expect ';' after class docstring.")?;
+            }
+        }
         let mut methods = Vec::new();
-
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
             methods.push(self.function("method")?);
         }
-
         self.consume(TokenType::RightBrace, "Expect '}' after class body.")?;
 
         Ok(Stmt::Class {
             name,
             super_class,
             methods,
+            doc,
         })
     }
 
@@ -120,15 +135,25 @@ impl Parser {
         }
 
         self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
-
         self.consume(
             TokenType::LeftBrace,
             &format!("Expect '{{' before {} body.", kind),
         )?;
+        let mut body = self.block()?;
+        let mut doc = None;
+        if !body.is_empty() {
+            if let Stmt::Expression(Expr::Literal(Literal::String(s))) = &body[0] {
+                doc = Some(s.clone());
+                body.remove(0);
+            }
+        }
 
-        let body = self.block()?;
-
-        Ok(Stmt::Function { name, params, body })
+        Ok(Stmt::Function {
+            name,
+            params,
+            body,
+            doc,
+        })
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
@@ -151,6 +176,12 @@ impl Parser {
     fn statement(&mut self) -> Result<Stmt, ParseError> {
         if self.match_token(&[TokenType::Echo]) {
             return self.echo_statement();
+        }
+        if self.match_token(&[TokenType::Break]) {
+            return self.break_statement();
+        }
+        if self.match_token(&[TokenType::Continue]) {
+            return self.continue_statement();
         }
         if self.match_token(&[TokenType::Try]) {
             return self.try_statement();
@@ -206,6 +237,18 @@ impl Parser {
         Ok(Stmt::Throw { keyword, value })
     }
 
+    fn break_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        self.consume(TokenType::Semicolon, "Expect ';' after 'break'.")?;
+        Ok(Stmt::Break { keyword })
+    }
+
+    fn continue_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        self.consume(TokenType::Semicolon, "Expect ';' after 'continue'.")?;
+        Ok(Stmt::Continue { keyword })
+    }
+
     fn return_statement(&mut self) -> Result<Stmt, ParseError> {
         let keyword = self.previous().clone();
 
@@ -238,9 +281,9 @@ impl Parser {
         let initializer = if self.match_token(&[TokenType::Semicolon]) {
             None
         } else if self.match_token(&[TokenType::Var]) {
-            Some(self.var_declaration()?)
+            Some(Box::new(self.var_declaration()?))
         } else {
-            Some(self.expression_statement()?)
+            Some(Box::new(self.expression_statement()?))
         };
 
         let condition = if !self.check(&TokenType::Semicolon) {
@@ -248,7 +291,6 @@ impl Parser {
         } else {
             None
         };
-
         self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
 
         let increment = if !self.check(&TokenType::RightParen) {
@@ -256,27 +298,17 @@ impl Parser {
         } else {
             None
         };
-
         self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
 
-        let mut body = self.statement()?;
+        let body = Box::new(self.statement()?);
+        let cond = condition.unwrap_or(Expr::Literal(Literal::Bool(true)));
 
-        if let Some(increment) = increment {
-            body = Stmt::Block(vec![body, Stmt::Expression(increment)]);
-        }
-
-        let condition = condition.unwrap_or(Expr::Literal(Literal::Bool(true)));
-
-        body = Stmt::While {
-            condition,
-            body: Box::new(body),
-        };
-
-        if let Some(initializer) = initializer {
-            body = Stmt::Block(vec![initializer, body]);
-        }
-
-        Ok(body)
+        Ok(Stmt::For {
+            initializer,
+            condition: cond,
+            increment,
+            body,
+        })
     }
 
     fn if_statement(&mut self) -> Result<Stmt, ParseError> {
@@ -676,7 +708,7 @@ impl Parser {
 
         while let Some(c) = chars.next() {
             if c == '$' && chars.peek() == Some(&'{') {
-                chars.next();
+                chars.next(); // Consume '{'
 
                 if !current_literal.is_empty() {
                     parts.push(Expr::Literal(Literal::String(current_literal.clone())));

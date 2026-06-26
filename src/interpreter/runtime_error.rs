@@ -4,6 +4,8 @@ use crate::parser::tokens::Token;
 pub enum RuntimeError {
     Error { token: Token, value: Value },
     Return(Value),
+    Break,
+    Continue,
 }
 
 impl RuntimeError {

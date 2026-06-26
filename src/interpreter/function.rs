@@ -17,14 +17,21 @@ pub struct KyroFunction {
     pub declaration: Stmt,
     pub closure: EnvRef,
     pub is_initializer: bool,
+    pub doc: Option<String>,
 }
 
 impl KyroFunction {
-    pub fn new(declaration: Stmt, closure: EnvRef, is_initializer: bool) -> Self {
+    pub fn new(
+        declaration: Stmt,
+        closure: EnvRef,
+        is_initializer: bool,
+        doc: Option<String>,
+    ) -> Self {
         Self {
             declaration,
             closure,
             is_initializer,
+            doc,
         }
     }
 
@@ -35,6 +42,7 @@ impl KyroFunction {
             self.declaration.clone(),
             Rc::new(RefCell::new(environment)),
             self.is_initializer,
+            self.doc.clone(),
         )
     }
 }
@@ -79,6 +87,7 @@ impl KyroCallable for KyroFunction {
                     Err(e) => Err(e),
                 }
             }
+
             _ => unreachable!(),
         }
     }
@@ -88,5 +97,9 @@ impl KyroCallable for KyroFunction {
             Stmt::Function { name, .. } => &name.lexeme,
             _ => unreachable!(),
         }
+    }
+
+    fn doc(&self) -> Option<&str> {
+        self.doc.as_deref()
     }
 }
