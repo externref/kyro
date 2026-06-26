@@ -1,0 +1,16 @@
+[project]
+name = "kyro"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "mkdocs>=1.6.1",
+    "mkdocs-shadcn>=0.11.0",
+    "pygments>=2.20.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "mkdocs-shadcn",
+]

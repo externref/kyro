@@ -1,0 +1,28 @@
+site_name: kyro
+repo_url: https://github.com/externref/kyro
+site_url: https://kyro.externref.dev
+
+theme:
+  name: shadcn
+  icon: assets/icon.svg
+  favicon: assets/icon.svg
+  show_title: true 
+  show_stargazers: true
+  pygments_style:
+        light: shadcn-light
+        dark: github-dark
+  topbar_sections: false 
+  katex_options: 
+    macros: 
+      "\\RR": "\\mathbb{R}" 
+      "\\dx": "\\mathrm{d}x"
+
+markdown_extensions:
+  - codehilite
+  - admonition
+  - pymdownx.blocks.tab
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+
