@@ -1,0 +1,330 @@
+fn trim(s) {
+    var chars = s.split("");
+    var start = 0;
+    while(start < chars.len()) {
+        var c = chars[start];
+        if(c == " " or c == "\t" or c == "\r" or c == "") {
+            start = start + 1;
+        }
+        else {
+            break;
+        }
+    }
+    var end = chars.len() - 1;
+    while(end >= start) {
+        var c = chars[end];
+        if(c == " " or c == "\t" or c == "\r" or c == "") {
+            end = end - 1;
+        }
+        else {
+            break;
+        }
+    }
+    if(start > end) {
+        return "";
+    }
+    var result = "";
+    for(var i = start; i <= end; i = i + 1) {
+        result = result + chars[i];
+    }
+    return result;
+}
+
+fn preprocess_braces(src) {
+    var chars = src.split("");
+    var result = "";
+    var i = 0;
+    var len = chars.len();
+    var string_char = "";
+    while(i < len) {
+        var c = chars[i];
+        if(c == "") {
+            i = i + 1;
+            continue;
+        }
+        if(c == "\\") {
+            result = result + c;
+            i = i + 1;
+            if(i < len) {
+                result = result + chars[i];
+                i = i + 1;
+            }
+            continue;
+        }
+        if(c == "\"" or c == "'") {
+            if(string_char == "") {
+                string_char = c;
+            }
+            else if(string_char == c) {
+                string_char = "";
+            }
+            result = result + c;
+            i = i + 1;
+            continue;
+        }
+        if(string_char != "") {
+            result = result + c;
+            i = i + 1;
+            continue;
+        }
+        if(c == "/" and i + 1 < len and chars[i + 1] == "/") {
+            var comment = "";
+            while(i < len and chars[i] != "\n") {
+                comment = comment + chars[i];
+                i = i + 1;
+            }
+            result = result + comment;
+            continue;
+        }
+        if(c == "{") {
+            var temp_i = i + 1;
+            while(temp_i < len and(chars[temp_i] == " " or chars[temp_i] == "\t" or chars[temp_i] == "\r" or chars[temp_i] == "\n")) {
+                temp_i = temp_i + 1;
+            }
+            if(temp_i < len and chars[temp_i] == "}") {
+                result = result + "{}";
+                i = temp_i + 1;
+                continue;
+            }
+            result = result + "{";
+            i = i + 1;
+            while(i < len and(chars[i] == " " or chars[i] == "\t" or chars[i] == "\r")) {
+                i = i + 1;
+            }
+            if(i < len and chars[i] != "\n") {
+                result = result + "\n";
+            }
+            continue;
+        }
+        if(c == "}") {
+            while(result.len() > 0 and(result.slice(result.len() - 1, result.len()) == " " or result.slice(result.len() - 1, result.len()) == "\t" or result.slice(result.len() - 1, result.len()) == "\r")) {
+                result = result.slice(0, result.len() - 1);
+            }
+            var last_c = result.slice(result.len() - 1, result.len());
+            if(last_c != "\n" and last_c != "") {
+                result = result + "\n";
+            }
+            result = result + "}";
+            i = i + 1;
+            while(i < len and(chars[i] == " " or chars[i] == "\t" or chars[i] == "\r")) {
+                i = i + 1;
+            }
+            if(i < len and chars[i] != "\n") {
+                result = result + "\n";
+            }
+            continue;
+        }
+        result = result + c;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn format_line(line, state) {
+    var chars = line.split("");
+    var result = "";
+    var i = 0;
+    var len = chars.len();
+    while(i < len) {
+        var c = chars[i];
+        if(c == "") {
+            i = i + 1;
+        }
+        else if(c == "\\") {
+            result = result + c;
+            i = i + 1;
+            if(i < len) {
+                result = result + chars[i];
+                i = i + 1;
+            }
+        }
+        else if(c == " ") {
+            while(i + 1 < len and chars[i + 1] == " ") {
+                i = i + 1;
+            }
+            result = result + " ";
+            i = i + 1;
+        }
+        else if(c == "\"" or c == "'") {
+            var active = state["string_char"];
+            if(active == "") {
+                state["string_char"] = c;
+            }
+            else if(active == c) {
+                state["string_char"] = "";
+            }
+            result = result + c;
+            i = i + 1;
+        }
+        else if(state["string_char"] != "") {
+            result = result + c;
+            i = i + 1;
+        }
+        else if(c == "/" and i + 1 < len and chars[i + 1] == "/") {
+            var comment = "";
+            for(var j = i; j < len; j = j + 1) {
+                comment = comment + chars[j];
+            }
+            result = result + comment;
+            i = len;
+        }
+        else if(c == "{") {
+            state["next_indent"] = state["next_indent"] + 1;
+            var last_c = result.slice(result.len() - 1, result.len());
+            if(last_c == ")") {
+                result = result + c;
+            }
+            else {
+                if(last_c == " " or last_c == "") {
+                    result = result + c;
+                }
+                else {
+                    result = result + " " + c;
+                }
+            }
+            i = i + 1;
+        }
+        else if(c == "}") {
+            state["indent"] = state["indent"] - 1;
+            state["next_indent"] = state["next_indent"] - 1;
+            result = result + c;
+            i = i + 1;
+        }
+        else if(c == ".") {
+            while(result.len() > 0 and result.slice(result.len() - 1, result.len()) == " ") {
+                result = result.slice(0, result.len() - 1);
+            }
+            result = result + ".";
+            i = i + 1;
+            while(i < len and chars[i] == " ") {
+                i = i + 1;
+            }
+        }
+        else if(c == "(" or c == "[") {
+            while(result.len() > 0 and result.slice(result.len() - 1, result.len()) == " ") {
+                result = result.slice(0, result.len() - 1);
+            }
+            result = result + c;
+            i = i + 1;
+            while(i < len and chars[i] == " ") {
+                i = i + 1;
+            }
+        }
+        else if(c == ")" or c == "]") {
+            while(result.len() > 0 and result.slice(result.len() - 1, result.len()) == " ") {
+                result = result.slice(0, result.len() - 1);
+            }
+            result = result + c;
+            i = i + 1;
+        }
+        else if(c == ",") {
+            while(result.len() > 0 and result.slice(result.len() - 1, result.len()) == " ") {
+                result = result.slice(0, result.len() - 1);
+            }
+            result = result + ", ";
+            i = i + 1;
+            while(i < len and chars[i] == " ") {
+                i = i + 1;
+            }
+        }
+        else if(c == ":") {
+            while(result.len() > 0 and result.slice(result.len() - 1, result.len()) == " ") {
+                result = result.slice(0, result.len() - 1);
+            }
+            result = result + ": ";
+            i = i + 1;
+            while(i < len and chars[i] == " ") {
+                i = i + 1;
+            }
+        }
+        else {
+            var is_op = false;
+            if(c == "+" or c == "-" or c == "*" or c == "/" or c == "=" or c == "<" or c == ">" or c == "!") {
+                is_op = true;
+            }
+            if(is_op) {
+                var op_str = c;
+                if(i + 1 < len and chars[i + 1] == "=") {
+                    op_str = c + "=";
+                    i = i + 1;
+                }
+                while(result.len() > 0 and result.slice(result.len() - 1, result.len()) == " ") {
+                    result = result.slice(0, result.len() - 1);
+                }
+                var last_c = result.slice(result.len() - 1, result.len());
+                var is_unary = false;
+                if(op_str == "-" or op_str == "!") {
+                    if(last_c == "(" or last_c == "[" or last_c == "," or last_c == "" or last_c == ":" or last_c == "=") {
+                        is_unary = true;
+                    }
+                }
+                if(is_unary) {
+                    result = result + op_str;
+                }
+                else {
+                    result = result + " " + op_str + " ";
+                }
+                i = i + 1;
+                while(i < len and chars[i] == " ") {
+                    i = i + 1;
+                }
+            }
+            else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+    }
+    return result;
+}
+
+fn format_source(src) {
+    var preprocessed = preprocess_braces(src);
+    var newline = "\n";
+    var lines = preprocessed.split(newline);
+    var formatted = "";
+    var state = {
+        "string_char": "", 
+        "indent": 0, 
+        "next_indent": 0
+    }
+    ;
+    var empty_lines_count = 0;
+    for(var i = 0; i < lines.len(); i = i + 1) {
+        var raw_line = lines[i];
+        var trimmed = trim(raw_line);
+        if(trimmed == "") {
+            if(state["indent"] > 0) {
+                continue;
+            }
+            empty_lines_count = empty_lines_count + 1;
+            if(empty_lines_count <= 1) {
+                formatted = formatted + newline;
+            }
+            continue;
+        }
+        empty_lines_count = 0;
+        var processed = format_line(trimmed, state);
+        var spaces = "";
+        var indent_spaces = state["indent"] * 4;
+        for(var j = 0; j < indent_spaces; j = j + 1) {
+            spaces = spaces + " ";
+        }
+        formatted = formatted + spaces + processed + newline;
+        state["indent"] = state["next_indent"];
+    }
+    return formatted;
+}
+
+fn format_file(filepath) {
+    var fs = use("std:fs");
+    var io = use("std:io");
+    if(!fs.exists(filepath)) {
+        io.println("error: file '${filepath}' not found.");
+        return nil;
+    }
+    var src = fs.read_file(filepath);
+    var formatted = format_source(src);
+    fs.write_file(filepath, formatted);
+}
+
