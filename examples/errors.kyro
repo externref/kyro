@@ -7,17 +7,18 @@ class Exception {
 }
 
 fn divide(x, y){
-    if (y==0){
+    if(y == 0){
         throw Exception("tried to divide ${x} by 0");
     }
-    return x/y;
+    return x / y;
 }
 
 fn main(){
     try {
         io.println("20/4=${divide(20,4)}");
         io.println("20/0=${divide(20,0)}");
-    } catch (err) {
+    }
+    catch(err) {
         io.println(err.msg);
     }
 }
@@ -29,4 +30,5 @@ main();
 //      Running `target/debug/kyro examples/errors.kyro`
 // 20/4=5
 // tried to divide 20 by 0
-// externref@MSI:~/projects/kyro$ 
+// externref@MSI:~/projects/kyro$
+

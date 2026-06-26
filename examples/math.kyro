@@ -1,12 +1,9 @@
 var io = use("std:io");
-
-fn add(x, y){
-    return x + y;
-}
+var math = use("lib:math");
 
 fn main(){
-    var sum = add(10, 20);
-    io.println("10+20=${sum}");
+    var nums =[1, 2, 3, 4, 5];
+    io.println("sum of ${nums} = {math.sum(nums)}");
 }
 
 main();
@@ -14,5 +11,6 @@ main();
 // externref@MSI:~/projects/kyro$ cargo run examples/math.kyro
 //     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
 //      Running `target/debug/kyro examples/math.kyro`
-// 10+20=30
-// externref@MSI:~/projects/kyro$ 
+// sum of [1, 2, 3, 4, 5] = {math.sum(nums)}
+// externref@MSI:~/projects/kyro$
+

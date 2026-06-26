@@ -4,7 +4,7 @@ var os = use("std:os");
 fn main(){
     io.println("provided arguments: ");
     var args = os.args();
-    for(var i=0; i<args.len(); i=i+1){
+    for(var i = 0; i < args.len(); i = i + 1){
         io.println(args[i]);
     }
 }
@@ -13,10 +13,11 @@ main();
 // externref@MSI:~/projects/kyro$ cargo run examples/args.kyro hehe haha meow
 //     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
 //      Running `target/debug/kyro examples/args.kyro hehe haha meow`
-// provided arguments: 
+// provided arguments:
 // target/debug/kyro
 // examples/args.kyro
 // hehe
 // haha
 // meow
-// externref@MSI:~/projects/kyro$ 
+// externref@MSI:~/projects/kyro$
+

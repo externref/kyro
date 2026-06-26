@@ -31,4 +31,5 @@ main();
 //      Running `target/debug/kyro examples/classes.kyro`
 // new animal
 // bob says meow
-// externref@MSI:~/projects/kyro$ 
+// externref@MSI:~/projects/kyro$
+

@@ -1,0 +1,28 @@
+var io = use("std:io");
+
+var names =["alex", "steve", "chris", "ram"];
+
+for(var i = 0; i < names.len(); i = i + 1){
+    echo names[i];
+}
+
+var i = 0;
+
+while(true){
+    if(i == 20){
+        break;
+    }
+    io.print(i);
+    i = i + 1;
+}
+io.println("");
+
+// externref@MSI:~/projects/kyro$ cargo run examples/loops.kyro
+//     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+//      Running `target/debug/kyro examples/loops.kyro`
+// alex
+// steve
+// chris
+// ram
+// 012345678910111213141516171819
+// externref@MSI:~/projects/kyro$

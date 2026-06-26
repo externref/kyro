@@ -13,4 +13,5 @@ main();
 //      Running `target/debug/kyro examples/modules.kyro`
 // 10+20=30   <- ( from main call in math.kyro )
 // 20+30=50
-// externref@MSI:~/projects/kyro$ 
+// externref@MSI:~/projects/kyro$
+

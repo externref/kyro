@@ -10,4 +10,5 @@ main();
 //    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
 //     Running `target/debug/kyro examples/hello.kyro`
 // hello, world!
-// externref@MSI:~/projects/kyro$ 
+// externref@MSI:~/projects/kyro$
+
