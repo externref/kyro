@@ -1,0 +1,118 @@
+"High-level date and time utilities for Kyro.";
+
+fn date_to_epoch(year, month, day, hour, minute, second) {
+    var y = year;
+    var m = month;
+    if(m <= 2) {
+        y = y - 1;
+        m = m + 12;
+    }
+    var era =(y / 400).floor();
+    if(y < 0) {
+        era =((y - 399) / 400).floor();
+    }
+    var yoe = y - era * 400;
+    var doy =((153 *(m - 3) + 2) / 5).floor() + day - 1;
+    var doe = yoe * 365 +(yoe / 4).floor() -(yoe / 100).floor() + doy;
+    var days = era * 146097 + doe - 719468;
+    return days * 86400 + hour * 3600 + minute * 60 + second;
+}
+
+fn epoch_to_date(timestamp) {
+    var remaining_seconds = timestamp % 86400;
+    var hour =(remaining_seconds / 3600).floor();
+    var minute =((remaining_seconds % 3600) / 60).floor();
+    var second =(remaining_seconds % 60).floor();
+    var days =(timestamp / 86400).floor() + 719468;
+    let era =(if days >= 0 {
+        days
+    }
+    else {
+        days - 146096
+    }
+    ) / 146097;
+    var doe =(days - era * 146097);
+    var yoe =((doe -(doe / 1460).floor() +(doe / 36524).floor() -(doe /
+        146097).floor()) / 365).floor();
+    var y = yoe + era * 400;
+    var doy = doe -(365 * yoe +(yoe / 4).floor() -(yoe / 100).floor());
+    var mp =((5 * doy + 2) / 153).floor();
+    var d = doy -((153 * mp + 2) / 5).floor() + 1;
+    var m = mp + 3;
+    if(mp >= 10) {
+        m = mp - 9;
+    }
+    var year = y;
+    if(m <= 2) {
+        year = y + 1;
+    }
+    return {
+        "year": year, 
+        "month": m, 
+        "day": d, 
+        "hour": hour, 
+        "minute": minute, 
+        "second": second
+    }
+    ;
+}
+
+class TimeDelta {
+    __init__(days = 0, hours = 0, minutes = 0, seconds = 0) {
+        this.days = days;
+        this.hours = hours;
+        this.minutes = minutes;
+        this.seconds = seconds;
+    }
+    total_seconds() {
+        return this.days * 86400 + this.hours * 3600 + this.minutes * 60 +
+            this.seconds;
+    }
+}
+
+class DateTime {
+    __init__(year, month, day, hour = 0, minute = 0, second = 0) {
+        this.year = year;
+        this.month = month;
+        this.day = day;
+        this.hour = hour;
+        this.minute = minute;
+        this.second = second;
+    }
+    is_leap_year() {
+        var y = this.year;
+        return(y % 4 == 0 and y % 100 != 0) or(y % 400 == 0);
+    }
+    to_string() {
+        var pad = fn(val) {
+            var s = val.to_string();
+            if(s.split("").len() < 2) {
+                return "0" + s;
+            }
+            return s;
+        }
+        ;
+        return this.year.to_string() + "-" + 
+        pad(this.month) + "-" + 
+        pad(this.day) + " " + 
+        pad(this.hour) + ":" + 
+        pad(this.minute) + ":" + 
+        pad(this.second);
+    }
+    add(timedelta) {
+        var current_epoch = date_to_epoch(this.year, this.month, this.day,
+            this.hour, this.minute, this.second);
+        var new_epoch = current_epoch + timedelta.total_seconds();
+        var dt = epoch_to_date(new_epoch);
+        return DateTime(dt["year"], dt["month"], dt["day"], dt["hour"],
+            dt["minute"], dt["second"]);
+    }
+}
+
+fn now() {
+    var t = use("std:time");
+    var n = t.now();
+    return DateTime(n["year"], n["month"], n["day"], n["hour"], n["minute"],
+        n["second"]);
+}
+

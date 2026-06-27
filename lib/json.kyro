@@ -1,7 +1,7 @@
 "Functions for handling JSON files.";
 
 class JSONParser {
-    init(json_str) {
+    __init__(json_str) {
         this.chars = json_str.split("");
         this.current = 0;
         this.len = this.chars.len();
@@ -273,7 +273,8 @@ fn dumps_indent(value, indent, depth) {
         var s = "{" + newline;
         for(var i = 0; i < keys.len(); i = i + 1) {
             var k = keys[i];
-            s = s + next_indent + "\"" + k + "\":" + spacing + dumps_indent(value[k], indent, depth + 1);
+            s = s + next_indent + "\"" + k + "\":" + spacing +
+                dumps_indent(value[k], indent, depth + 1);
             if(i < keys.len() - 1) {
                 s = s + ",";
             }
@@ -291,7 +292,7 @@ fn loads(json_str) {
     return parser.parse();
 }
 
-fn dumps(value, indent) {
+fn dumps(value, indent = nil) {
     "Creates a JSON string using a JSON compatible dictionary.";
     return dumps_indent(value, indent, 0);
 }
@@ -303,7 +304,7 @@ fn load(filepath) {
     return loads(content);
 }
 
-fn dump(value, filepath, indent) {
+fn dump(value, filepath, indent = nil) {
     "Dumps JSON into a file at provided path.";
     var fs = use("std:fs");
     var s = dumps(value, indent);

@@ -1,7 +1,7 @@
 var io = use("std:io");
 
 class Animal {
-    init(){
+    __init__(){
         io.println("new animal");
     }
     do_sound(){
@@ -10,8 +10,8 @@ class Animal {
 }
 
 class Cat < Animal {
-    init(name){
-        super.init();
+    __init__(name){
+        super.__init__();
         this.name = name;
     }
     do_sound(){

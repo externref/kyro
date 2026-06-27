@@ -1,7 +1,7 @@
 var io = use("std:io");
 
 class Exception {
-    init(msg){
+    __init__(msg){
         this.msg = msg;
     }
 }

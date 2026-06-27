@@ -1,15 +1,15 @@
-fn sum(args){
-    sum = 0;
+var PI = 3.141592653589793;
+var TWO_PI = 2 * PI;
+
+fn sum(args =[]) {
+    var sum = 0;
     for(var i = 0; i < args.len(); i = i + 1){
         sum = sum + args[i];
     }
     return sum;
 }
 
-var PI = 3.141592653589793;
-var TWO_PI = 2 * PI;
-
-fn sin(x) {
+fn sin(x = 0) {
     var div = x / TWO_PI;
     x = x -(div.floor() * TWO_PI);
     if(x > PI) {
@@ -27,7 +27,7 @@ fn sin(x) {
     return sum;
 }
 
-fn cos(x) {
+fn cos(x = 0) {
     var div = x / TWO_PI;
     x = x -(div.floor() * TWO_PI);
     if(x > PI) {
@@ -45,11 +45,66 @@ fn cos(x) {
     return sum;
 }
 
-fn tan(x) {
+fn tan(x = 0) {
     var c = cos(x);
     if(c == 0) {
         throw "tangent undefined: division by zero";
     }
     return sin(x) / c;
+}
+
+fn min(a, b) {
+    if(a < b) {
+        return a;
+    }
+    return b;
+}
+
+fn max(a, b) {
+    if(a > b) {
+        return a;
+    }
+    return b;
+}
+
+fn deg_to_rad(deg) {
+    return deg *(PI / 180);
+}
+
+fn rad_to_deg(rad) {
+    return rad *(180 / PI);
+}
+
+fn sqrt(x) {
+    if(x < 0) {
+        throw "square root undefined: negative input";
+    }
+    if(x == 0) {
+        return 0;
+    }
+    var guess = x / 2;
+    for(var i = 0; i < 10; i = i + 1) {
+        guess =(guess +(x / guess)) / 2;
+    }
+    return guess;
+}
+
+fn pow(base, exp) {
+    if(exp == 0) {
+        return 1;
+    }
+    var result = 1;
+    var is_negative = false;
+    if(exp < 0) {
+        is_negative = true;
+        exp =-exp;
+    }
+    for(var i = 0; i < exp; i = i + 1) {
+        result = result * base;
+    }
+    if(is_negative) {
+        return 1 / result;
+    }
+    return result;
 }
 
