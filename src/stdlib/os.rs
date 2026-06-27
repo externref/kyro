@@ -25,6 +25,19 @@ pub fn get_module() -> Value {
     fields.insert("get_env".to_string(), Value::Callable(Rc::new(GetEnvFn)));
     fields.insert("set_env".to_string(), Value::Callable(Rc::new(SetEnvFn)));
     fields.insert("get_envs".to_string(), Value::Callable(Rc::new(GetEnvsFn)));
+    fields.insert("exit".to_string(), Value::Callable(Rc::new(ExitFn)));
+    fields.insert("get_pid".to_string(), Value::Callable(Rc::new(GetPidFn)));
+    fields.insert("platform".to_string(), Value::Callable(Rc::new(PlatformFn)));
+    fields.insert("arch".to_string(), Value::Callable(Rc::new(ArchFn)));
+    fields.insert(
+        "current_dir".to_string(),
+        Value::Callable(Rc::new(CurrentDirFn)),
+    );
+    fields.insert(
+        "set_current_dir".to_string(),
+        Value::Callable(Rc::new(SetCurrentDirFn)),
+    );
+    fields.insert("execute".to_string(), Value::Callable(Rc::new(ExecuteFn)));
 
     let instance = KyroInstance { class, fields };
     Value::Instance(Rc::new(RefCell::new(instance)))
@@ -191,5 +204,221 @@ impl KyroCallable for GetEnvsFn {
 
     fn name(&self) -> &str {
         "get_envs"
+    }
+}
+
+pub struct ExitFn;
+
+impl KyroCallable for ExitFn {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let code = match arguments[0] {
+            Value::Number(n) => n as i32,
+            _ => {
+                return Err(RuntimeError::new(
+                    dummy_token(),
+                    "Exit code must be a number.",
+                ));
+            }
+        };
+        std::process::exit(code);
+    }
+
+    fn name(&self) -> &str {
+        "exit"
+    }
+}
+
+pub struct GetPidFn;
+
+impl KyroCallable for GetPidFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        Ok(Value::Number(std::process::id() as f64))
+    }
+
+    fn name(&self) -> &str {
+        "get_pid"
+    }
+}
+
+pub struct PlatformFn;
+
+impl KyroCallable for PlatformFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        Ok(Value::String(std::env::consts::OS.to_string()))
+    }
+
+    fn name(&self) -> &str {
+        "platform"
+    }
+}
+
+pub struct ArchFn;
+
+impl KyroCallable for ArchFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        Ok(Value::String(std::env::consts::ARCH.to_string()))
+    }
+
+    fn name(&self) -> &str {
+        "arch"
+    }
+}
+
+pub struct CurrentDirFn;
+
+impl KyroCallable for CurrentDirFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        match std::env::current_dir() {
+            Ok(path) => Ok(Value::String(path.to_string_lossy().into_owned())),
+            Err(e) => Err(RuntimeError::new(
+                dummy_token(),
+                format!("Failed to retrieve current working directory: {}", e),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "current_dir"
+    }
+}
+
+pub struct SetCurrentDirFn;
+
+impl KyroCallable for SetCurrentDirFn {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => return Err(RuntimeError::new(dummy_token(), "Path must be a string.")),
+        };
+
+        match std::env::set_current_dir(path) {
+            Ok(_) => Ok(Value::Nil),
+            Err(e) => Err(RuntimeError::new(
+                dummy_token(),
+                format!("Failed to set current working directory: {}", e),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "set_current_dir"
+    }
+}
+
+pub struct ExecuteFn;
+
+impl KyroCallable for ExecuteFn {
+    fn arity(&self) -> usize {
+        2
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let command = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    dummy_token(),
+                    "Command must be a string.",
+                ));
+            }
+        };
+
+        let args_list = match &arguments[1] {
+            Value::List(list_ref) => list_ref.borrow(),
+            _ => {
+                return Err(RuntimeError::new(
+                    dummy_token(),
+                    "Command arguments must be supplied as a list.",
+                ));
+            }
+        };
+
+        let mut cmd_args = Vec::new();
+        for val in args_list.iter() {
+            match val {
+                Value::String(s) => cmd_args.push(s.clone()),
+                _ => {
+                    return Err(RuntimeError::new(
+                        dummy_token(),
+                        "All command arguments must be strings.",
+                    ));
+                }
+            }
+        }
+
+        match std::process::Command::new(command).args(&cmd_args).output() {
+            Ok(output) => {
+                let exit_code = output.status.code().unwrap_or(-1) as f64;
+                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+                let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+                let mut result = HashMap::new();
+                result.insert("exit_code".to_string(), Value::Number(exit_code));
+                result.insert("stdout".to_string(), Value::String(stdout));
+                result.insert("stderr".to_string(), Value::String(stderr));
+
+                Ok(Value::Dict(Rc::new(RefCell::new(result))))
+            }
+            Err(e) => Err(RuntimeError::new(
+                dummy_token(),
+                format!("Failed to execute process '{}': {}", command, e),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "execute"
     }
 }
