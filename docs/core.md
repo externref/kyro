@@ -4,6 +4,10 @@ title: core
 
 The core global functions, reflection utilities, and built-in literal types available in `kyro`.
 
+**Also look at:**
+
+* [`std`](std/index.md): built-in standard library (native in rust).
+* [`lib`](lib/index.md): modules under `lib/` written in kyro.
 
 ## Built-in Types
 
