@@ -21,8 +21,24 @@ markdown_extensions:
   - codehilite
   - admonition
   - pymdownx.blocks.tab
+  - pymdownx.blocks.details
 
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Syntax: syntax.md
+  - Documentation:
+    - core.md
+    - std: 
+      - std/index.md
+      - std/fs.md
+      - std/io.md
+      - std/os.md
+      - std/time.md
+      - std/util.md
+    - lib:
+      - lib/index.md
+      - lib/json.md 
+      - lib/math.md
+
 
