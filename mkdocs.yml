@@ -22,15 +22,21 @@ markdown_extensions:
   - admonition
   - pymdownx.blocks.tab
   - pymdownx.blocks.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
 
 nav:
   - Home: index.md
   - Installation: installation.md
   - Syntax: syntax.md
+  - Grammar: GRAMMAR.md
   - Documentation:
     - core.md
     - std: 
       - std/index.md
+      - std/ffi.md
       - std/fs.md
       - std/io.md
       - std/os.md
@@ -38,7 +44,9 @@ nav:
       - std/util.md
     - lib:
       - lib/index.md
+      - lib/datetime.md
       - lib/json.md 
       - lib/math.md
 
-
+hooks:
+  - docs/hooks.py

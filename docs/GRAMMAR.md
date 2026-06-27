@@ -10,13 +10,14 @@ kyro keywords are reserved and cannot be used as identifiers.
 
 ```text
 keyword     -> "and" | "class" | "else" | "false" | "fn" | "for" 
-             | "if" | "nil" | "or" | "echo" | "return" | "super" 
-             | "this" | "true" | "var" | "while" | "try" | "catch" 
-             | "throw"
+             | "if" | "in" | "nil" | "or" | "echo" | "return" 
+             | "super" | "this" | "true" | "var" | "while" 
+             | "try" | "catch" | "throw" | "break" | "continue"
 
 symbol      -> "(" | ")" | "{" | "}" | "[" | "]" | ":" | "," 
              | "." | "-" | "+" | ";" | "/" | "*" | "!" | "!=" 
-             | "=" | "==" | "<" | "<=" | ">" | ">="
+             | "=" | "==" | "<" | "<=" | ">" | ">=" | "&" | "|" 
+             | "^" | "~" | "<<" | ">>"
 ```
 
 ---
@@ -37,7 +38,7 @@ classdecl   -> "class" identifier ( "<" identifier )? "{" function* "}"
 ```
 ```javascript
 class pastry {
-  init(flavour) {
+  __init__(flavour) {
     this.flavour = flavour;
   }
 }
@@ -46,25 +47,29 @@ class doughnut < pastry {}
 ```
 
 ### function declaration
-defines a named block of code that can accept parameters. declared using the `fn` keyword.
+defines a named block of code that can accept parameters. parameters can optionally declare default fallback values.
 ```text
 fundecl     -> "fn" identifier "(" parameters? ")" block
-parameters  -> identifier ( "," identifier )*
+parameters  -> parameter ( "," parameter )*
+parameter   -> identifier ( "=" expression )?
 ```
 ```javascript
-fn multiply(x, y) {
+fn multiply(x, y = 2) {
   return x * y;
 }
 ```
 
 ### variable declaration
-declares a variable with an optional initial value.
+declares a variable (with optional initial value) or binds multiple values using list and dictionary sequence destructuring.
 ```text
 vardecl     -> "var" identifier ( "=" expression )? ";"
+             | "var" "[" identifier ( "," identifier )* "]" "=" expression ";"
+             | "var" "{" identifier ( "," identifier )* "}" "=" expression ";"
 ```
 ```javascript
 var x = 10;
-var uninitialized;
+var [first, second] = ["apple", "banana"];
+var { name, role } = { "name": "bob", "role": "dev" };
 ```
 
 ---
@@ -75,7 +80,8 @@ statements represent actions that do not produce values.
 
 ```text
 statement   -> exprstmt | echostmt | block | ifstmt | whilestmt 
-             | forstmt | returnstmt | trycatchstmt | throwstmt
+             | forstmt | forinstmt | returnstmt | trycatchstmt 
+             | throwstmt
 ```
 
 ### expression statement
@@ -145,6 +151,18 @@ for (var i = 0; i < 5; i = i + 1) {
 }
 ```
 
+### for-in statement
+loops over elements of lists, keys of dictionaries, or custom iterators implementing a `__next__()` method.
+```text
+forinstmt   -> "for" "(" "var" identifier "in" expression ")" statement
+```
+```javascript
+var list = ["a", "b", "c"];
+for (var val in list) {
+  print(val);
+}
+```
+
 ### return statement
 exits a function call, optionally returning an evaluated value.
 ```text
@@ -211,10 +229,37 @@ true or false;
 ### logic and
 evaluates boolean short-circuiting conjunction.
 ```text
-logic_and   -> equality ( "and" equality )*
+logic_and   -> bitwise_or ( "and" bitwise_or )*
 ```
 ```javascript
 is_valid and x > 0;
+```
+
+### bitwise or
+computes bitwise OR on numerical operands.
+```text
+bitwise_or  -> bitwise_xor ( "|" bitwise_xor )*
+```
+```javascript
+var flags = status | 4;
+```
+
+### bitwise xor
+computes bitwise XOR on numerical operands.
+```text
+bitwise_xor -> bitwise_and ( "^" bitwise_and )*
+```
+```javascript
+var difference = mask1 ^ mask2;
+```
+
+### bitwise and
+computes bitwise AND on numerical operands.
+```text
+bitwise_and -> equality ( "&" equality )*
+```
+```javascript
+var is_active = status & 1;
 ```
 
 ### equality
@@ -230,10 +275,19 @@ x == y;
 ### comparison
 relational comparison operations.
 ```text
-comparison  -> term ( ( ">" | ">=" | "<" | "<=" ) term )*
+comparison  -> bitwise_shift ( ( ">" | ">=" | "<" | "<=" ) bitwise_shift )*
 ```
 ```javascript
 x < 100;
+```
+
+### bitwise shift
+computes arithmetic left and right bitwise shifts.
+```text
+bitwise_shift -> term ( ( "<<" | ">>" ) term )*
+```
+```javascript
+var shifted = value << 2;
 ```
 
 ### term
@@ -255,40 +309,52 @@ var product = x * y;
 ```
 
 ### unary
-logical negation and arithmetic inversion.
+logical negation, arithmetic inversion, and bitwise tilde negation.
 ```text
-unary       -> ( "!" | "-" ) unary | call
+unary       -> ( "!" | "-" | "~" ) unary | call
 ```
 ```javascript
 !is_ready;
 -5;
+~mask;
 ```
 
 ### call
-function calls, class instantiations, property gets, and subscript indexing accesses.
+function calls (with optional keyword arguments), class instantiations, property gets, and subscript indexing accesses.
 ```text
 call        -> primary ( "(" arguments? ")" | "." identifier | "[" expression "]" )*
-arguments   -> expression ( "," expression )*
+arguments   -> argument ( "," argument )*
+argument    -> expression | identifier "=" expression
 ```
 ```javascript
 math.square(x);
+json.dumps(config, indent = 4);
 list[0];
-dict["name"];
 ```
 
 ### primary
-base literals, parenthesized groupings, namespaces, and structured collections.
+base literals, parenthesized groupings, namespaces, structured collections, and anonymous functions.
 ```text
 primary     -> NUMBER | STRING | "true" | "false" | "nil" | "this" | identifier
              | "super" "." identifier
              | "(" expression ")"
              | listliteral | dictliteral
+             | lambda
 ```
 ```javascript
 true;
 this.field;
 super.method();
 (x + y);
+```
+
+### anonymous function (lambda)
+declares a named or nameless inline closure expression.
+```text
+lambda      -> "fn" "(" parameters? ")" block
+```
+```javascript
+var double = fn(x) { return x * 2; };
 ```
 
 ### list literal

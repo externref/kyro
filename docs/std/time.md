@@ -6,13 +6,13 @@ This module contains functions for working with time and date values.
 
 **Include using**
 
-```rust
+```kyro
 var time = use("std:time");
 ```
 
 ### clock
 
-```rust
+```kyro
 clock() -> Number
 ```
 
@@ -21,7 +21,7 @@ Returns the current Unix timestamp as a number representing the number of second
 * **Parameters:** None
 * **Returns:** *(Number)* The current Unix timestamp in seconds.
 
-```rust
+```kyro
 var time = use("std:time");
 
 var ts = time.clock();
@@ -30,7 +30,7 @@ print(ts);
 
 ### now
 
-```rust
+```kyro
 now() -> Dict
 ```
 
@@ -45,7 +45,7 @@ Returns the current date and time as a dictionary containing the fields `year`, 
     * `minute`: The current minute (0-59) as a number.
     * `second`: The current second (0-59) as a number.
 
-```rust
+```kyro
 var time = use("std:time");
 
 var now = time.now();
@@ -57,8 +57,8 @@ print(now["day"]);
 
 ### format
 
-```rust
-format(timestamp: Number, format: String) -> String
+```kyro
+format(timestamp: Number = clock(), format: String = "%Y-%m-%d %H:%M:%S") -> String
 ```
 
 Formats a Unix timestamp using a format string.
@@ -73,16 +73,39 @@ Supported format specifiers:
 * `%S` - two-digit second
 
 * **Parameters:**
-    * `timestamp` *(Number)*: The Unix timestamp (in seconds) to format.
-    * `format` *(String)*: The template string containing the format specifiers.
+    * `timestamp` *(Number, optional)*: The Unix timestamp (in seconds) to format. Defaults to the current system timestamp returned by `clock()`.
+    * `format` *(String, optional)*: The template string containing the format specifiers. Defaults to `"%Y-%m-%d %H:%M:%S"`.
 * **Returns:** *(String)* The formatted date and time string.
 
-```rust
+```kyro
 var time = use("std:time");
 
-var ts = time.clock();
+// Formats the current time using default formatting (omitting both parameters)
+var current_formatted = time.format();
+print(current_formatted); // e.g. "2023-10-27 15:45:00"
 
-var date = time.format(ts, "%Y-%m-%d %H:%M:%S");
+// Formats a custom timestamp with a custom format
+var custom_date = time.format(1698421500, format = "%d/%m/%Y");
+print(custom_date); // "27/10/2023"
+```
 
-print(date);
+### sleep
+
+```kyro
+sleep(ms: Number) -> Nil
+```
+
+Pauses execution of the current thread for the specified duration of milliseconds.
+
+* **Parameters:**
+    * `ms` *(Number)*: The number of milliseconds to sleep. Must be a positive value.
+* **Returns:** *(Nil)*
+
+```kyro
+var time = use("std:time");
+
+print("waiting...");
+// Pause execution for 1.5 seconds (1500 milliseconds)
+time.sleep(1500);
+print("done!");
 ```

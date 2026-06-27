@@ -1,4 +1,5 @@
 /target
 /.venv
 /site
+*/__pycache__
 test.kyro
