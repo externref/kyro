@@ -2,10 +2,54 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://kyro.externref.dev/</loc>
-         <lastmod>2026-06-26</lastmod>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/core/</loc>
+         <lastmod>2026-06-27</lastmod>
     </url>
     <url>
          <loc>https://kyro.externref.dev/installation/</loc>
-         <lastmod>2026-06-26</lastmod>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/syntax/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/lib/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/lib/json/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/lib/math/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/fs/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/io/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/os/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/time/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/util/</loc>
+         <lastmod>2026-06-27</lastmod>
     </url>
 </urlset>

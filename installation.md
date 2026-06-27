@@ -2,7 +2,7 @@
 
 To install, follow these steps:
 
-## Prerequisites
+### Prerequisites
 
 * **Rust** for compiling the binary: [https://rust-lang.org/tools/install/](https://rust-lang.org/tools/install/)
 * **Git (Optional)** to clone the repo: [https://git-scm.com/](https://git-scm.com/), alternatively, download it manually from github.
