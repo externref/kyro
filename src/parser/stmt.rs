@@ -1,12 +1,23 @@
 use super::{expr::Expr, tokens::Token};
 
 #[derive(Debug, Clone)]
+pub struct Parameter {
+    pub name: Token,
+    pub default_value: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Expression(Expr),
     Echo(Expr),
     Var {
         name: Token,
         initializer: Option<Expr>,
+    },
+    VarDestructure {
+        names: Vec<Token>,
+        is_dict: bool,
+        initializer: Expr,
     },
     Block(Vec<Stmt>),
     If {
@@ -18,9 +29,20 @@ pub enum Stmt {
         condition: Expr,
         body: Box<Stmt>,
     },
+    For {
+        initializer: Option<Box<Stmt>>,
+        condition: Expr,
+        increment: Option<Expr>,
+        body: Box<Stmt>,
+    },
+    ForIn {
+        var_name: Token,
+        collection: Expr,
+        body: Box<Stmt>,
+    },
     Function {
         name: Token,
-        params: Vec<Token>,
+        params: Vec<Parameter>,
         body: Vec<Stmt>,
         doc: Option<String>,
     },
@@ -42,12 +64,6 @@ pub enum Stmt {
     Throw {
         keyword: Token,
         value: Expr,
-    },
-    For {
-        initializer: Option<Box<Stmt>>,
-        condition: Expr,
-        increment: Option<Expr>,
-        body: Box<Stmt>,
     },
     Break {
         keyword: Token,

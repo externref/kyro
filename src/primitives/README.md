@@ -77,7 +77,7 @@ echo num.floor();
 to add a new method to a primitive type (for example, adding `.reverse()` to lists):
 
 1. **create the standard rust function**: open `list.rs` and write a standalone function that accepts the list pointer, captures it in a closure, and returns a `PrimitiveMethod`:
-   ```rust
+   ```kyro
    fn reverse(list: Rc<RefCell<Vec<Value>>>) -> PrimitiveMethod {
        PrimitiveMethod::new("reverse", 0, move |_, _| {
            list.borrow_mut().reverse();
@@ -86,7 +86,7 @@ to add a new method to a primitive type (for example, adding `.reverse()` to lis
    }
    ```
 2. **register in the dispatcher**: update the `get_list_method` dispatcher match block inside `list.rs` to map the name to your new function:
-   ```rust
+   ```kyro
    pub fn get_list_method(list: Rc<RefCell<Vec<Value>>>, name: &Token) -> Result<Value, RuntimeError> {
        match name.lexeme.as_str() {
            "len" => Ok(Value::Callable(Rc::new(len(list)))),

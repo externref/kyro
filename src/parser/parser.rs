@@ -1,6 +1,6 @@
 use super::{
-    expr::Expr,
-    stmt::Stmt,
+    expr::{Argument, Expr},
+    stmt::{Parameter, Stmt},
     tokens::{Literal, Token, TokenType},
 };
 use crate::parser::scanner::Scanner;
@@ -126,7 +126,17 @@ impl Parser {
 
         if !self.check(&TokenType::RightParen) {
             loop {
-                params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+                let param_name = self.consume(TokenType::Identifier, "Expect parameter name.")?;
+                let mut default_value = None;
+
+                if self.match_token(&[TokenType::Equal]) {
+                    default_value = Some(self.expression()?);
+                }
+
+                params.push(Parameter {
+                    name: param_name,
+                    default_value,
+                });
 
                 if !self.match_token(&[TokenType::Comma]) {
                     break;
@@ -157,6 +167,62 @@ impl Parser {
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
+        if self.match_token(&[TokenType::LeftBracket]) {
+            let mut names = Vec::new();
+            loop {
+                names.push(self.consume(
+                    TokenType::Identifier,
+                    "Expect variable name in destructuring.",
+                )?);
+                if !self.match_token(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+            self.consume(
+                TokenType::RightBracket,
+                "Expect ']' after destructuring variables.",
+            )?;
+            self.consume(TokenType::Equal, "Expect '=' in destructuring assignment.")?;
+            let initializer = self.expression()?;
+            self.consume(
+                TokenType::Semicolon,
+                "Expect ';' after destructuring declaration.",
+            )?;
+            return Ok(Stmt::VarDestructure {
+                names,
+                is_dict: false,
+                initializer,
+            });
+        }
+
+        if self.match_token(&[TokenType::LeftBrace]) {
+            let mut names = Vec::new();
+            loop {
+                names.push(self.consume(
+                    TokenType::Identifier,
+                    "Expect variable name in destructuring.",
+                )?);
+                if !self.match_token(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+            self.consume(
+                TokenType::RightBrace,
+                "Expect '}' after destructuring variables.",
+            )?;
+            self.consume(TokenType::Equal, "Expect '=' in destructuring assignment.")?;
+            let initializer = self.expression()?;
+            self.consume(
+                TokenType::Semicolon,
+                "Expect ';' after destructuring declaration.",
+            )?;
+            return Ok(Stmt::VarDestructure {
+                names,
+                is_dict: true,
+                initializer,
+            });
+        }
+
         let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
 
         let initializer = if self.match_token(&[TokenType::Equal]) {
@@ -277,6 +343,25 @@ impl Parser {
 
     fn for_statement(&mut self) -> Result<Stmt, ParseError> {
         self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+
+        if self.check(&TokenType::Var) {
+            if self.current + 2 < self.tokens.len()
+                && self.tokens[self.current + 1].r#type == TokenType::Identifier
+                && self.tokens[self.current + 2].r#type == TokenType::In
+            {
+                self.consume(TokenType::Var, "Expect 'var'.")?;
+                let var_name = self.consume(TokenType::Identifier, "Expect variable name.")?;
+                self.consume(TokenType::In, "Expect 'in' keyword.")?;
+                let collection = self.expression()?;
+                self.consume(TokenType::RightParen, "Expect ')' after for-in clauses.")?;
+                let body = Box::new(self.statement()?);
+                return Ok(Stmt::ForIn {
+                    var_name,
+                    collection,
+                    body,
+                });
+            }
+        }
 
         let initializer = if self.match_token(&[TokenType::Semicolon]) {
             None
@@ -454,12 +539,12 @@ impl Parser {
     }
 
     fn and(&mut self) -> Result<Expr, ParseError> {
-        let mut expr = self.equality()?;
+        let mut expr = self.bitwise_or()?;
 
         while self.match_token(&[TokenType::And]) {
             let operator = self.previous().clone();
 
-            let right = self.equality()?;
+            let right = self.bitwise_or()?;
 
             expr = Expr::Logical {
                 left: Box::new(expr),
@@ -471,8 +556,59 @@ impl Parser {
         Ok(expr)
     }
 
+    fn bitwise_or(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.bitwise_xor()?;
+
+        while self.match_token(&[TokenType::Pipe]) {
+            let operator = self.previous().clone();
+            let right = self.bitwise_xor()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn bitwise_xor(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.bitwise_and()?;
+
+        while self.match_token(&[TokenType::Caret]) {
+            let operator = self.previous().clone();
+            let right = self.bitwise_and()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn bitwise_and(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.equality()?;
+
+        while self.match_token(&[TokenType::Ampersand]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
     fn comparison(&mut self) -> Result<Expr, ParseError> {
-        let mut expr = self.term()?;
+        let mut expr = self.bitwise_shift()?;
 
         while self.match_token(&[
             TokenType::Greater,
@@ -480,6 +616,23 @@ impl Parser {
             TokenType::Less,
             TokenType::LessEqual,
         ]) {
+            let operator = self.previous().clone();
+            let right = self.bitwise_shift()?;
+
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn bitwise_shift(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.term()?;
+
+        while self.match_token(&[TokenType::LessLess, TokenType::GreaterGreater]) {
             let operator = self.previous().clone();
             let right = self.term()?;
 
@@ -562,7 +715,20 @@ impl Parser {
 
         if !self.check(&TokenType::RightParen) {
             loop {
-                arguments.push(self.expression()?);
+                let is_keyword = self.check(&TokenType::Identifier)
+                    && self.current + 1 < self.tokens.len()
+                    && self.tokens[self.current + 1].r#type == TokenType::Equal;
+
+                if is_keyword {
+                    let name =
+                        self.consume(TokenType::Identifier, "Expect keyword argument name.")?;
+                    self.consume(TokenType::Equal, "Expect '=' after keyword name.")?;
+                    let value = self.expression()?;
+                    arguments.push(Argument::Keyword { name, value });
+                } else {
+                    let value = self.expression()?;
+                    arguments.push(Argument::Positional(value));
+                }
 
                 if !self.match_token(&[TokenType::Comma]) {
                     break;
@@ -580,7 +746,7 @@ impl Parser {
     }
 
     fn unary(&mut self) -> Result<Expr, ParseError> {
-        if self.match_token(&[TokenType::Bang, TokenType::Minus]) {
+        if self.match_token(&[TokenType::Bang, TokenType::Minus, TokenType::Tilde]) {
             let operator = self.previous().clone();
 
             let right = self.unary()?;
@@ -605,6 +771,36 @@ impl Parser {
 
         if self.match_token(&[TokenType::Nil]) {
             return Ok(Expr::Literal(Literal::Nil));
+        }
+
+        if self.match_token(&[TokenType::Fn]) {
+            let id = self.get_next_id();
+            self.consume(TokenType::LeftParen, "Expect '(' after 'fn'.")?;
+            let mut params = Vec::new();
+            if !self.check(&TokenType::RightParen) {
+                loop {
+                    let param_name =
+                        self.consume(TokenType::Identifier, "Expect parameter name.")?;
+                    let mut default_value = None;
+                    if self.match_token(&[TokenType::Equal]) {
+                        default_value = Some(self.expression()?);
+                    }
+                    params.push(Parameter {
+                        name: param_name,
+                        default_value,
+                    });
+                    if !self.match_token(&[TokenType::Comma]) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+            self.consume(
+                TokenType::LeftBrace,
+                "Expect '{' before anonymous function body.",
+            )?;
+            let body = self.block()?;
+            return Ok(Expr::Lambda { params, body, id });
         }
 
         if self.match_token(&[TokenType::Number, TokenType::String]) {
@@ -708,7 +904,7 @@ impl Parser {
 
         while let Some(c) = chars.next() {
             if c == '$' && chars.peek() == Some(&'{') {
-                chars.next(); // Consume '{'
+                chars.next();
 
                 if !current_literal.is_empty() {
                     parts.push(Expr::Literal(Literal::String(current_literal.clone())));

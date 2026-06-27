@@ -1,4 +1,12 @@
+use super::stmt::Parameter;
+use super::stmt::Stmt;
 use super::tokens::{Literal, Token};
+
+#[derive(Debug, Clone)]
+pub enum Argument {
+    Positional(Expr),
+    Keyword { name: Token, value: Expr },
+}
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -24,7 +32,7 @@ pub enum Expr {
     Call {
         callee: Box<Expr>,
         paren: Token,
-        arguments: Vec<Expr>,
+        arguments: Vec<Argument>,
     },
     Grouping(Box<Expr>),
     Literal(Literal),
@@ -75,6 +83,11 @@ pub enum Expr {
         parts: Vec<Expr>,
         id: usize,
     },
+    Lambda {
+        params: Vec<Parameter>,
+        body: Vec<Stmt>,
+        id: usize,
+    },
 }
 
 pub trait ExprVisitor<T> {
@@ -85,7 +98,7 @@ pub trait ExprVisitor<T> {
     fn visit_variable(&mut self, name: &Token, id: usize) -> T;
     fn visit_assign(&mut self, name: &Token, value: &Expr, id: usize) -> T;
     fn visit_logical(&mut self, left: &Expr, operator: &Token, right: &Expr) -> T;
-    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &[Expr]) -> T;
+    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &[Argument]) -> T;
     fn visit_get(&mut self, object: &Expr, name: &Token) -> T;
     fn visit_set(&mut self, object: &Expr, name: &Token, value: &Expr) -> T;
     fn visit_this(&mut self, keyword: &Token, id: usize) -> T;
@@ -102,6 +115,7 @@ pub trait ExprVisitor<T> {
         id: usize,
     ) -> T;
     fn visit_interpolate(&mut self, parts: &[Expr], id: usize) -> T;
+    fn visit_lambda(&mut self, params: &[Parameter], body: &[Stmt], id: usize) -> T;
 }
 
 impl Expr {
@@ -158,6 +172,7 @@ impl Expr {
                 id,
             } => visitor.visit_subscript_assign(object, index, value, paren, *id),
             Expr::Interpolate { parts, id } => visitor.visit_interpolate(parts, *id),
+            Expr::Lambda { params, body, id } => visitor.visit_lambda(params, body, *id),
         }
     }
 }

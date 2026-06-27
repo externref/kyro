@@ -21,6 +21,7 @@ impl Scanner {
         keywords.insert("for", TokenType::For);
         keywords.insert("fn", TokenType::Fn);
         keywords.insert("if", TokenType::If);
+        keywords.insert("in", TokenType::In);
         keywords.insert("nil", TokenType::Nil);
         keywords.insert("or", TokenType::Or);
         keywords.insert("echo", TokenType::Echo);
@@ -72,6 +73,10 @@ impl Scanner {
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
+            '&' => self.add_token(TokenType::Ampersand),
+            '|' => self.add_token(TokenType::Pipe),
+            '^' => self.add_token(TokenType::Caret),
+            '~' => self.add_token(TokenType::Tilde),
 
             '!' => {
                 let t = if self.matches('=') {
@@ -94,6 +99,8 @@ impl Scanner {
             '<' => {
                 let t = if self.matches('=') {
                     TokenType::LessEqual
+                } else if self.matches('<') {
+                    TokenType::LessLess
                 } else {
                     TokenType::Less
                 };
@@ -103,6 +110,8 @@ impl Scanner {
             '>' => {
                 let t = if self.matches('=') {
                     TokenType::GreaterEqual
+                } else if self.matches('>') {
+                    TokenType::GreaterGreater
                 } else {
                     TokenType::Greater
                 };

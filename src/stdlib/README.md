@@ -95,7 +95,7 @@ to add a new built-in module (e.g., `"std:sys"`):
 
 1. **create the file**: add `src/stdlib/sys.rs`.
 2. **define the module structure**: inside the new file, implement your functions as structs conforming to `kyrocallable` (from `crate::interpreter::callable::kyrocallable`), and expose a public `get_module()` function returning a `value`:
-   ```rust
+   ```kyro
    pub fn get_module() -> Value {
        let class = Rc::new(KyroClass {
            name: "sys".to_string(),
@@ -112,7 +112,7 @@ to add a new built-in module (e.g., `"std:sys"`):
 3. **register in mod.rs**: open `src/stdlib/mod.rs` and:
    * declare the submodule: `pub mod sys;`
    * add the intercept match condition inside `Use::call`:
-     ```rust
+     ```kyro
      if filename == "sys" || filename == "std:sys" {
          return Ok(sys::get_module());
      }

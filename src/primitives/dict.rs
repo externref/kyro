@@ -1,49 +1,169 @@
-use crate::interpreter::{runtime_error::RuntimeError, value::Value};
-use crate::parser::tokens::Token;
-use crate::primitives::PrimitiveMethod;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use crate::interpreter::{
+    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+};
+use crate::parser::tokens::Token;
 
 pub fn get_dict_method(
     dict: Rc<RefCell<HashMap<String, Value>>>,
     name: &Token,
 ) -> Result<Value, RuntimeError> {
     match name.lexeme.as_str() {
-        "len" => Ok(Value::Callable(Rc::new(len(dict)))),
-        "remove" => Ok(Value::Callable(Rc::new(remove(dict)))),
-        "keys" => Ok(Value::Callable(Rc::new(keys(dict)))),
-        _ => Err(RuntimeError::new(
-            name.clone(),
-            format!("Undefined dictionary method '{}'.", name.lexeme),
-        )),
+        "len" => Ok(Value::Callable(Rc::new(LenFn { dict }))),
+        "keys" => Ok(Value::Callable(Rc::new(KeysFn { dict }))),
+        "values" => Ok(Value::Callable(Rc::new(ValuesFn { dict }))),
+        "clear" => Ok(Value::Callable(Rc::new(ClearFn { dict }))),
+        "remove" => Ok(Value::Callable(Rc::new(RemoveFn {
+            dict,
+            token: name.clone(),
+        }))),
+        _ => Err(RuntimeError::Error {
+            token: name.clone(),
+            value: Value::String(format!("Undefined method '{}' on dictionary.", name.lexeme)),
+        }),
     }
 }
 
-fn len(dict: Rc<RefCell<HashMap<String, Value>>>) -> PrimitiveMethod {
-    PrimitiveMethod::new("len", 0, move |_, _| {
-        Ok(Value::Number(dict.borrow().len() as f64))
-    })
+pub struct LenFn {
+    pub dict: Rc<RefCell<HashMap<String, Value>>>,
 }
 
-fn remove(dict: Rc<RefCell<HashMap<String, Value>>>) -> PrimitiveMethod {
-    PrimitiveMethod::new("remove", 1, move |_, args| {
-        let key_str = match &args[0] {
-            Value::String(s) => s.clone(),
-            _ => args[0].to_string(),
-        };
-        let removed = dict.borrow_mut().remove(&key_str).unwrap_or(Value::Nil);
-        Ok(removed)
-    })
+impl KyroCallable for LenFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        Ok(Value::Number(self.dict.borrow().len() as f64))
+    }
+
+    fn name(&self) -> &str {
+        "len"
+    }
 }
 
-fn keys(dict: Rc<RefCell<HashMap<String, Value>>>) -> PrimitiveMethod {
-    PrimitiveMethod::new("keys", 0, move |_, _| {
-        let borrowed = dict.borrow();
+pub struct KeysFn {
+    pub dict: Rc<RefCell<HashMap<String, Value>>>,
+}
+
+impl KyroCallable for KeysFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let borrowed = self.dict.borrow();
         let mut keys_list = Vec::new();
         for key in borrowed.keys() {
             keys_list.push(Value::String(key.clone()));
         }
         Ok(Value::List(Rc::new(RefCell::new(keys_list))))
-    })
+    }
+
+    fn name(&self) -> &str {
+        "keys"
+    }
+}
+
+pub struct ValuesFn {
+    pub dict: Rc<RefCell<HashMap<String, Value>>>,
+}
+
+impl KyroCallable for ValuesFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let borrowed = self.dict.borrow();
+        let mut vals_list = Vec::new();
+        for val in borrowed.values() {
+            vals_list.push(val.clone());
+        }
+        Ok(Value::List(Rc::new(RefCell::new(vals_list))))
+    }
+
+    fn name(&self) -> &str {
+        "values"
+    }
+}
+
+pub struct ClearFn {
+    pub dict: Rc<RefCell<HashMap<String, Value>>>,
+}
+
+impl KyroCallable for ClearFn {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        self.dict.borrow_mut().clear();
+        Ok(Value::Nil)
+    }
+
+    fn name(&self) -> &str {
+        "clear"
+    }
+}
+
+pub struct RemoveFn {
+    pub dict: Rc<RefCell<HashMap<String, Value>>>,
+    pub token: Token,
+}
+
+impl KyroCallable for RemoveFn {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let key_str = match &arguments[0] {
+            Value::String(s) => s.clone(),
+            _ => {
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    "Dictionary key must be a string.",
+                    self.token.clone(),
+                ));
+            }
+        };
+        let removed = self
+            .dict
+            .borrow_mut()
+            .remove(&key_str)
+            .unwrap_or(Value::Nil);
+        Ok(removed)
+    }
+
+    fn name(&self) -> &str {
+        "remove"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["key".to_string()]
+    }
 }

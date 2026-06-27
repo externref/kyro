@@ -28,10 +28,13 @@ pub fn get_module() -> Value {
     );
     fields.insert("to_number".to_string(), Value::Callable(Rc::new(ToNumber)));
     fields.insert("info".to_string(), Value::Callable(Rc::new(InfoFn)));
+    fields.insert("type_of".to_string(), Value::Callable(Rc::new(TypeOfFn)));
+    fields.insert("range".to_string(), Value::Callable(Rc::new(RangeFn)));
 
     let instance = KyroInstance { class, fields };
     Value::Instance(Rc::new(RefCell::new(instance)))
 }
+
 pub struct ToStringFn;
 
 impl KyroCallable for ToStringFn {
@@ -41,14 +44,19 @@ impl KyroCallable for ToStringFn {
 
     fn call(
         &self,
-        _interpreter: &mut Interpreter,
+        interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        Ok(Value::String(arguments[0].to_string()))
+        let str_val = interpreter.stringify(&arguments[0]);
+        Ok(Value::String(str_val))
     }
 
     fn name(&self) -> &str {
         "to_string"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["value".to_string()]
     }
 }
 
@@ -61,7 +69,7 @@ impl KyroCallable for ToNumber {
 
     fn call(
         &self,
-        _interpreter: &mut Interpreter,
+        interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
         let token = Token::new(TokenType::Identifier, "to_number".to_string(), None, 0);
@@ -69,9 +77,10 @@ impl KyroCallable for ToNumber {
             Value::Number(n) => Ok(Value::Number(*n)),
             Value::String(s) => match s.trim().parse::<f64>() {
                 Ok(n) => Ok(Value::Number(n)),
-                Err(_) => Err(RuntimeError::new(
+                Err(_) => Err(interpreter.raise_error(
+                    "ValueError",
+                    &format!("invalid number format: {s}"),
                     token,
-                    format!("invalid number format: {s}"),
                 )),
             },
             Value::Bool(b) => {
@@ -82,15 +91,20 @@ impl KyroCallable for ToNumber {
                 }
             }
             Value::Nil => Ok(Value::Number(0.0)),
-            _ => Err(RuntimeError::new(
-                token,
+            _ => Err(interpreter.raise_error(
+                "TypeError",
                 "cannot convert this type to a number",
+                token,
             )),
         }
     }
 
     fn name(&self) -> &str {
         "to_number"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["value".to_string()]
     }
 }
 
@@ -126,6 +140,140 @@ impl KyroCallable for InfoFn {
     }
 
     fn doc(&self) -> Option<&str> {
-        return Some("info about the language");
+        Some("info about the language")
+    }
+}
+
+pub struct TypeOfFn;
+
+impl KyroCallable for TypeOfFn {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let class_name = match &arguments[0] {
+            Value::Nil => "Nil",
+            Value::Bool(_) => "Bool",
+            Value::Number(_) => "Number",
+            Value::String(_) => "String",
+            Value::List(_) => "List",
+            Value::Dict(_) => "Dict",
+            Value::Class(_) => "Class",
+            Value::Instance(inst) => return Ok(Value::Class(inst.borrow().class.clone())),
+            Value::Callable(_) => "Callable",
+        };
+
+        let global_cls = interpreter
+            .environment
+            .borrow()
+            .get(class_name)
+            .unwrap_or(Value::Nil);
+
+        Ok(global_cls)
+    }
+
+    fn name(&self) -> &str {
+        "type_of"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["value".to_string()]
+    }
+}
+
+pub struct RangeFn;
+
+impl KyroCallable for RangeFn {
+    fn arity(&self) -> usize {
+        2
+    }
+
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let start = match arguments[0] {
+            Value::Number(n) => n,
+            _ => {
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    "First argument 'start' must be a number.",
+                    Token::new(TokenType::Identifier, "range".to_string(), None, 0),
+                ));
+            }
+        };
+
+        let end = match arguments[1] {
+            Value::Number(n) => n,
+            _ => {
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    "Second argument 'end' must be a number.",
+                    Token::new(TokenType::Identifier, "range".to_string(), None, 0),
+                ));
+            }
+        };
+
+        let step = match arguments[2] {
+            Value::Number(n) => n,
+            _ => {
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    "Third argument 'step' must be a number.",
+                    Token::new(TokenType::Identifier, "range".to_string(), None, 0),
+                ));
+            }
+        };
+
+        if step == 0.0 {
+            return Err(interpreter.raise_error(
+                "ValueError",
+                "Range step size cannot be zero.",
+                Token::new(TokenType::Identifier, "range".to_string(), None, 0),
+            ));
+        }
+
+        let mut values = Vec::new();
+        if step > 0.0 {
+            let mut curr = start;
+            while curr < end {
+                values.push(Value::Number(curr));
+                curr += step;
+            }
+        } else {
+            let mut curr = start;
+            while curr > end {
+                values.push(Value::Number(curr));
+                curr += step;
+            }
+        }
+
+        Ok(Value::List(Rc::new(RefCell::new(values))))
+    }
+
+    fn name(&self) -> &str {
+        "range"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["start".to_string(), "end".to_string(), "step".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "step" {
+            Some(Ok(Value::Number(1.0)))
+        } else {
+            None
+        }
     }
 }

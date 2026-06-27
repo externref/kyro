@@ -11,7 +11,17 @@ pub enum TokenType {
     Echo, Return, Super, This, True, Var, While,
     Try, Catch, Throw, 
     Break, Continue,
+    In, Ampersand, Pipe, Caret, Tilde,
+    LessLess, GreaterGreater,
     Eof,
+}
+
+#[derive(Debug, Clone)]
+pub enum Literal {
+    Number(f64),
+    String(String),
+    Bool(bool),
+    Nil,
 }
 
 #[derive(Debug, Clone)]
@@ -20,14 +30,6 @@ pub struct Token {
     pub lexeme: String,
     pub literal: Option<Literal>,
     pub line: usize,
-}
-
-#[derive(Debug, Clone)]
-pub enum Literal {
-    String(String),
-    Number(f64),
-    Bool(bool),
-    Nil,
 }
 
 impl Token {

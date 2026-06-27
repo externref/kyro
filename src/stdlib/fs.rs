@@ -30,6 +30,12 @@ pub fn get_module() -> Value {
         Value::Callable(Rc::new(RemoveFile)),
     );
 
+    fields.insert(
+        "create_dir".to_string(),
+        Value::Callable(Rc::new(CreateDir)),
+    );
+    fields.insert("read_dir".to_string(), Value::Callable(Rc::new(ReadDir)));
+
     let instance = KyroInstance { class, fields };
     Value::Instance(Rc::new(RefCell::new(instance)))
 }
@@ -68,13 +74,17 @@ impl KyroCallable for ReadFile {
     fn name(&self) -> &str {
         "read_file"
     }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string()]
+    }
 }
 
 pub struct WriteFile;
 
 impl KyroCallable for WriteFile {
     fn arity(&self) -> usize {
-        2
+        1
     }
 
     fn call(
@@ -106,6 +116,22 @@ impl KyroCallable for WriteFile {
     fn name(&self) -> &str {
         "write_file"
     }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string(), "content".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "content" {
+            Some(Ok(Value::String("".to_string())))
+        } else {
+            None
+        }
+    }
 }
 
 pub struct Exists;
@@ -136,6 +162,10 @@ impl KyroCallable for Exists {
 
     fn name(&self) -> &str {
         "exists"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string()]
     }
 }
 
@@ -172,5 +202,126 @@ impl KyroCallable for RemoveFile {
 
     fn name(&self) -> &str {
         "remove_file"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string()]
+    }
+}
+
+pub struct CreateDir;
+
+impl KyroCallable for CreateDir {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "create_dir".to_string(), None, 0),
+                    "First argument to create_dir() must be a string path.",
+                ));
+            }
+        };
+
+        let recursive = match arguments[1] {
+            Value::Bool(b) => b,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "create_dir".to_string(), None, 0),
+                    "Second argument 'recursive' must be a boolean.",
+                ));
+            }
+        };
+
+        let result = if recursive {
+            std::fs::create_dir_all(path)
+        } else {
+            std::fs::create_dir(path)
+        };
+
+        match result {
+            Ok(_) => Ok(Value::Nil),
+            Err(e) => Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "create_dir".to_string(), None, 0),
+                format!("Failed to create directory '{path}': {e}"),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "create_dir"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string(), "recursive".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "recursive" {
+            Some(Ok(Value::Bool(false)))
+        } else {
+            None
+        }
+    }
+}
+
+pub struct ReadDir;
+
+impl KyroCallable for ReadDir {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let path = match &arguments[0] {
+            Value::String(s) => s,
+            _ => {
+                return Err(RuntimeError::new(
+                    Token::new(TokenType::Identifier, "read_dir".to_string(), None, 0),
+                    "Argument to read_dir() must be a string path.",
+                ));
+            }
+        };
+
+        match std::fs::read_dir(path) {
+            Ok(entries) => {
+                let mut list = Vec::new();
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let name = entry.file_name().to_string_lossy().into_owned();
+                        list.push(Value::String(name));
+                    }
+                }
+                Ok(Value::List(Rc::new(RefCell::new(list))))
+            }
+            Err(e) => Err(RuntimeError::new(
+                Token::new(TokenType::Identifier, "read_dir".to_string(), None, 0),
+                format!("Failed to read directory '{path}': {e}"),
+            )),
+        }
+    }
+
+    fn name(&self) -> &str {
+        "read_dir"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string()]
     }
 }

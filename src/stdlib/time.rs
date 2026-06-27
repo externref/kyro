@@ -23,10 +23,12 @@ pub fn get_module() -> Value {
     fields.insert("clock".to_string(), Value::Callable(Rc::new(Clock)));
     fields.insert("now".to_string(), Value::Callable(Rc::new(Now)));
     fields.insert("format".to_string(), Value::Callable(Rc::new(Format)));
+    fields.insert("sleep".to_string(), Value::Callable(Rc::new(Sleep)));
 
     let instance = KyroInstance { class, fields };
     Value::Instance(Rc::new(RefCell::new(instance)))
 }
+
 pub struct Clock;
 
 impl KyroCallable for Clock {
@@ -86,7 +88,7 @@ pub struct Format;
 
 impl KyroCallable for Format {
     fn arity(&self) -> usize {
-        2
+        0
     }
 
     fn call(
@@ -139,6 +141,80 @@ impl KyroCallable for Format {
 
     fn name(&self) -> &str {
         "format"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["timestamp".to_string(), "format".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "timestamp" {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64();
+            Some(Ok(Value::Number(now)))
+        } else if param_name == "format" {
+            Some(Ok(Value::String("%Y-%m-%d %H:%M:%S".to_string())))
+        } else {
+            None
+        }
+    }
+}
+
+pub struct Sleep;
+
+impl KyroCallable for Sleep {
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn call(
+        &self,
+        _interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let ms = match arguments[0] {
+            Value::Number(n) => n,
+            _ => {
+                return Err(RuntimeError::new(
+                    crate::parser::tokens::Token::new(
+                        crate::parser::tokens::TokenType::Identifier,
+                        "sleep".to_string(),
+                        None,
+                        0,
+                    ),
+                    "Argument to sleep() must be a number of milliseconds.",
+                ));
+            }
+        };
+
+        if ms < 0.0 {
+            return Err(RuntimeError::new(
+                crate::parser::tokens::Token::new(
+                    crate::parser::tokens::TokenType::Identifier,
+                    "sleep".to_string(),
+                    None,
+                    0,
+                ),
+                "Sleep duration cannot be negative.",
+            ));
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+        Ok(Value::Nil)
+    }
+
+    fn name(&self) -> &str {
+        "sleep"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["ms".to_string()]
     }
 }
 

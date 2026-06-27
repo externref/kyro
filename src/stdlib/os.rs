@@ -77,7 +77,7 @@ pub struct LoadDotenvFn;
 
 impl KyroCallable for LoadDotenvFn {
     fn arity(&self) -> usize {
-        1
+        0
     }
 
     fn call(
@@ -114,6 +114,22 @@ impl KyroCallable for LoadDotenvFn {
     fn name(&self) -> &str {
         "load_dotenv"
     }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "path" {
+            Some(Ok(Value::String(".env".to_string())))
+        } else {
+            None
+        }
+    }
 }
 
 pub struct GetEnvFn;
@@ -147,6 +163,10 @@ impl KyroCallable for GetEnvFn {
     fn name(&self) -> &str {
         "get_env"
     }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["key".to_string()]
+    }
 }
 
 pub struct SetEnvFn;
@@ -178,6 +198,10 @@ impl KyroCallable for SetEnvFn {
 
     fn name(&self) -> &str {
         "set_env"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["key".to_string(), "value".to_string()]
     }
 }
 
@@ -211,7 +235,7 @@ pub struct ExitFn;
 
 impl KyroCallable for ExitFn {
     fn arity(&self) -> usize {
-        1
+        0
     }
 
     fn call(
@@ -233,6 +257,22 @@ impl KyroCallable for ExitFn {
 
     fn name(&self) -> &str {
         "exit"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["code".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "code" {
+            Some(Ok(Value::Number(0.0)))
+        } else {
+            None
+        }
     }
 }
 
@@ -351,13 +391,17 @@ impl KyroCallable for SetCurrentDirFn {
     fn name(&self) -> &str {
         "set_current_dir"
     }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["path".to_string()]
+    }
 }
 
 pub struct ExecuteFn;
 
 impl KyroCallable for ExecuteFn {
     fn arity(&self) -> usize {
-        2
+        1
     }
 
     fn call(
@@ -420,5 +464,21 @@ impl KyroCallable for ExecuteFn {
 
     fn name(&self) -> &str {
         "execute"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["command".to_string(), "args".to_string()]
+    }
+
+    fn default_value(
+        &self,
+        _interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        if param_name == "args" {
+            Some(Ok(Value::List(Rc::new(RefCell::new(Vec::new())))))
+        } else {
+            None
+        }
     }
 }

@@ -50,7 +50,9 @@ impl KyroFunction {
 impl KyroCallable for KyroFunction {
     fn arity(&self) -> usize {
         match &self.declaration {
-            Stmt::Function { params, .. } => params.len(),
+            Stmt::Function { params, .. } => {
+                params.iter().filter(|p| p.default_value.is_none()).count()
+            }
             _ => unreachable!(),
         }
     }
@@ -64,7 +66,7 @@ impl KyroCallable for KyroFunction {
         match &self.declaration {
             Stmt::Function { params, body, .. } => {
                 for (param, argument) in params.iter().zip(arguments) {
-                    environment.define(param.lexeme.clone(), argument);
+                    environment.define(param.name.lexeme.clone(), argument);
                 }
 
                 let result = interpreter.execute_block(body, Rc::new(RefCell::new(environment)));
@@ -101,5 +103,34 @@ impl KyroCallable for KyroFunction {
 
     fn doc(&self) -> Option<&str> {
         self.doc.as_deref()
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        match &self.declaration {
+            Stmt::Function { params, .. } => params.iter().map(|p| p.name.lexeme.clone()).collect(),
+            _ => unreachable!(),
+        }
+    }
+
+    fn default_value(
+        &self,
+        interpreter: &mut Interpreter,
+        param_name: &str,
+    ) -> Option<Result<Value, RuntimeError>> {
+        match &self.declaration {
+            Stmt::Function { params, .. } => {
+                let param = params.iter().find(|p| p.name.lexeme == param_name)?;
+                let default_expr = param.default_value.as_ref()?;
+
+                let previous_env = interpreter.environment.clone();
+                interpreter.environment = self.closure.clone();
+                let result = interpreter.interpret(default_expr);
+
+                interpreter.environment = previous_env;
+
+                Some(result)
+            }
+            _ => unreachable!(),
+        }
     }
 }

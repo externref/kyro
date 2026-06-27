@@ -12,16 +12,67 @@ pub struct Kyro {
 
 impl Kyro {
     pub fn new() -> Kyro {
-        Kyro {
+        let mut kyro = Kyro {
             had_error: false,
             interpreter: Interpreter::new(),
             source_lines: Vec::new(),
+        };
+        kyro.bootstrap();
+        kyro
+    }
+
+    fn bootstrap(&mut self) {
+        let boot_code = r#"
+            class Exception {
+                init(message = "") {
+                    this.message = message;
+                }
+                __str__() {
+                    return this.__class__.__name__ + ": " + this.message;
+                }
+                to_string() {
+                    return this.__str__();
+                }
+            }
+            class ValueError < Exception {}
+            class AttributeError < Exception {}
+            class TypeError < Exception {}
+            class IndexError < Exception {}
+
+            class List {}
+            class Dict {}
+            class Number {}
+            class String {}
+            class Bool {}
+            class Nil {}
+            class Callable {}
+            class Class {}
+        "#;
+
+        let prev_lines = std::mem::take(&mut self.source_lines);
+
+        let scanner = Scanner::new(boot_code.to_string(), 1);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens, self.interpreter.next_id);
+        let statements = parser.parse();
+        self.interpreter.next_id = parser.get_next_id_counter();
+
+        let mut resolver = Resolver::new(&mut self.interpreter);
+        resolver.resolve(&statements);
+
+        for stmt in &statements {
+            let _ = self.interpreter.execute(stmt);
         }
+
+        self.source_lines = prev_lines;
     }
 
     pub fn run_file(&mut self, path: &str) -> std::io::Result<()> {
         let file_content = std::fs::read_to_string(path)?;
         self.run(&file_content);
+        if self.had_error {
+            std::process::exit(70);
+        }
         Ok(())
     }
 
@@ -80,11 +131,13 @@ impl Kyro {
             if let Err(error) = self.interpreter.execute(&stmt) {
                 match error {
                     RuntimeError::Error { token, value } => {
-                        self.report_context_error(token.line, &token.lexeme, &value.to_string());
+                        let error_message = self.interpreter.stringify(&value);
+                        self.report_context_error(token.line, &token.lexeme, &error_message);
                     }
                     RuntimeError::Return(_) => {}
                     RuntimeError::Break | RuntimeError::Continue => {}
                 }
+                break;
             }
         }
     }
@@ -113,13 +166,4 @@ impl Kyro {
         eprintln!();
         self.had_error = true;
     }
-
-    // fn report(&mut self, line: usize, r#where: &str, msg: &str) {
-    //     println!("[line {}] Error {}: {}", line, r#where, msg);
-    //     self.had_error = true
-    // }
-
-    // pub fn error(&mut self, line: usize, msg: &str) {
-    //     self.report(line, "", msg);
-    // }
 }

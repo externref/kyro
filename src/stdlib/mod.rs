@@ -1,3 +1,4 @@
+pub mod ffi;
 pub mod fs;
 pub mod io;
 pub mod os;
@@ -33,9 +34,10 @@ impl KyroCallable for Use {
         let filename = match arg_val {
             Value::String(s) => s,
             _ => {
-                return Err(RuntimeError::new(
-                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
+                return Err(interpreter.raise_error(
+                    "TypeError",
                     "Argument to use() must be a string.",
+                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
                 ));
             }
         };
@@ -54,6 +56,8 @@ impl KyroCallable for Use {
             fs::get_module()
         } else if filename == "util" || filename == "std:util" {
             util::get_module()
+        } else if filename == "ffi" || filename == "std:ffi" {
+            ffi::get_module()
         } else {
             let resolved_filename = if filename.starts_with("lib:") {
                 let lib_name = &filename[4..];
@@ -67,9 +71,10 @@ impl KyroCallable for Use {
             let file_content = match std::fs::read_to_string(&resolved_filename) {
                 Ok(content) => content,
                 Err(e) => {
-                    return Err(RuntimeError::new(
+                    return Err(interpreter.raise_error(
+                        "ValueError",
+                        &format!("Failed to load module file '{resolved_filename}': {e}"),
                         Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                        format!("Failed to load module file '{resolved_filename}': {e}"),
                     ));
                 }
             };
@@ -80,11 +85,12 @@ impl KyroCallable for Use {
                 for (line, msg, lex) in scanner_errors {
                     report_module_error(&file_content, &resolved_filename, line, &lex, &msg);
                 }
-                return Err(RuntimeError::new(
-                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    format!(
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    &format!(
                         "Lexical syntax errors found inside imported module '{resolved_filename}'."
                     ),
+                    Token::new(TokenType::Identifier, "use".to_string(), None, 0),
                 ));
             }
 
@@ -102,9 +108,10 @@ impl KyroCallable for Use {
                         &message,
                     );
                 }
-                return Err(RuntimeError::new(
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    &format!("Parsing errors found inside imported module '{resolved_filename}'."),
                     Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    format!("Parsing errors found inside imported module '{resolved_filename}'."),
                 ));
             }
 
@@ -132,11 +139,10 @@ impl KyroCallable for Use {
                     );
                 }
                 interpreter.environment = previous_env;
-                return Err(RuntimeError::new(
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    &format!("Static analysis resolution failed inside imported module '{resolved_filename}'."),
                     Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                    format!(
-                        "Static analysis resolution failed inside imported module '{resolved_filename}'."
-                    ),
                 ));
             }
 
@@ -152,11 +158,12 @@ impl KyroCallable for Use {
                                 &token.lexeme,
                                 &value.to_string(),
                             );
-                            return Err(RuntimeError::new(
-                                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
-                                format!(
+                            return Err(interpreter.raise_error(
+                                "TypeError",
+                                &format!(
                                     "Runtime error inside imported module '{resolved_filename}'."
                                 ),
+                                Token::new(TokenType::Identifier, "use".to_string(), None, 0),
                             ));
                         }
                         _ => return Err(e),
@@ -189,6 +196,10 @@ impl KyroCallable for Use {
 
     fn name(&self) -> &str {
         "use"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["module".to_string()]
     }
 }
 
@@ -297,6 +308,10 @@ impl KyroCallable for DirFn {
     fn name(&self) -> &str {
         "dir"
     }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["item".to_string()]
+    }
 }
 
 pub struct IdFn;
@@ -325,5 +340,57 @@ impl KyroCallable for IdFn {
 
     fn name(&self) -> &str {
         "id"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["item".to_string()]
+    }
+}
+
+pub struct IsInstanceFn;
+
+impl KyroCallable for IsInstanceFn {
+    fn arity(&self) -> usize {
+        2
+    }
+
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Value>,
+    ) -> Result<Value, RuntimeError> {
+        let target_class = match &arguments[1] {
+            Value::Class(cls) => cls,
+            _ => {
+                return Err(interpreter.raise_error(
+                    "TypeError",
+                    "Second argument to is_instance() must be a class.",
+                    Token::new(TokenType::Identifier, "is_instance".to_string(), None, 0),
+                ));
+            }
+        };
+
+        let instance = match &arguments[0] {
+            Value::Instance(inst) => inst,
+            _ => return Ok(Value::Bool(false)),
+        };
+
+        let mut current_class = Some(instance.borrow().class.clone());
+        while let Some(cls) = current_class {
+            if Rc::ptr_eq(&cls, target_class) {
+                return Ok(Value::Bool(true));
+            }
+            current_class = cls.superclass.clone();
+        }
+
+        Ok(Value::Bool(false))
+    }
+
+    fn name(&self) -> &str {
+        "is_instance"
+    }
+
+    fn parameter_names(&self) -> Vec<String> {
+        vec!["item".to_string(), "class".to_string()]
     }
 }

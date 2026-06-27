@@ -1,5 +1,5 @@
-use super::expr::{Expr, ExprVisitor};
-use super::stmt::Stmt;
+use super::expr::{Argument, Expr, ExprVisitor};
+use super::stmt::{Parameter, Stmt};
 use super::tokens::Token;
 use crate::interpreter::interpreter::Interpreter;
 use std::collections::HashMap;
@@ -60,6 +60,17 @@ impl<'a> Resolver<'a> {
                     self.resolve_expr(init);
                 }
                 self.define(name);
+            }
+            Stmt::VarDestructure {
+                names,
+                is_dict: _,
+                initializer,
+            } => {
+                self.resolve_expr(initializer);
+                for name in names {
+                    self.declare(name);
+                    self.define(name);
+                }
             }
             Stmt::Function {
                 name,
@@ -130,6 +141,24 @@ impl<'a> Resolver<'a> {
 
                 self.is_inside_loop = enclosing_loop;
             }
+            Stmt::ForIn {
+                var_name,
+                collection,
+                body,
+            } => {
+                let enclosing_loop = self.is_inside_loop;
+                self.is_inside_loop = true;
+
+                self.resolve_expr(collection);
+
+                self.begin_scope();
+                self.declare(var_name);
+                self.define(var_name);
+                self.resolve_stmt(body);
+                self.end_scope();
+
+                self.is_inside_loop = enclosing_loop;
+            }
             Stmt::Break { keyword } => {
                 if !self.is_inside_loop {
                     self.error(keyword, "Can't use 'break' outside of a loop.");
@@ -184,7 +213,7 @@ impl<'a> Resolver<'a> {
                         doc: _,
                     } = method
                     {
-                        let declaration_type = if mname.lexeme == "init" {
+                        let declaration_type = if mname.lexeme == "__init__" {
                             FunctionType::Initializer
                         } else {
                             FunctionType::Method
@@ -230,14 +259,17 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_function(&mut self, params: &[Token], body: &[Stmt], func_type: FunctionType) {
+    fn resolve_function(&mut self, params: &[Parameter], body: &[Stmt], func_type: FunctionType) {
         let enclosing_function = self.current_function;
         self.current_function = func_type;
 
         self.begin_scope();
         for param in params {
-            self.declare(param);
-            self.define(param);
+            if let Some(default_val) = &param.default_value {
+                self.resolve_expr(default_val);
+            }
+            self.declare(&param.name);
+            self.define(&param.name);
         }
         self.resolve_block(body);
         self.end_scope();
@@ -311,10 +343,13 @@ impl<'a> ExprVisitor<()> for Resolver<'a> {
         self.resolve_expr(right);
     }
 
-    fn visit_call(&mut self, callee: &Expr, _paren: &Token, arguments: &[Expr]) {
+    fn visit_call(&mut self, callee: &Expr, _paren: &Token, arguments: &[Argument]) {
         self.resolve_expr(callee);
         for arg in arguments {
-            self.resolve_expr(arg);
+            match arg {
+                Argument::Positional(expr) => self.resolve_expr(expr),
+                Argument::Keyword { name: _, value } => self.resolve_expr(value),
+            }
         }
     }
 
@@ -394,5 +429,9 @@ impl<'a> ExprVisitor<()> for Resolver<'a> {
         for part in parts {
             self.resolve_expr(part);
         }
+    }
+
+    fn visit_lambda(&mut self, params: &[Parameter], body: &[Stmt], _id: usize) {
+        self.resolve_function(params, body, FunctionType::Function);
     }
 }
