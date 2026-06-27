@@ -57,7 +57,7 @@ Make sure you're in the repo's directory and run the following command
 
 Create a test file with any name, for this example we'll use `main.kyro`
 
-```rust
+```kyro
 var io = use("std:io");
 
 fn main(){

@@ -5,6 +5,10 @@
          <lastmod>2026-06-27</lastmod>
     </url>
     <url>
+         <loc>https://kyro.externref.dev/GRAMMAR/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
          <loc>https://kyro.externref.dev/core/</loc>
          <lastmod>2026-06-27</lastmod>
     </url>
@@ -21,6 +25,10 @@
          <lastmod>2026-06-27</lastmod>
     </url>
     <url>
+         <loc>https://kyro.externref.dev/lib/datetime/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
          <loc>https://kyro.externref.dev/lib/json/</loc>
          <lastmod>2026-06-27</lastmod>
     </url>
@@ -30,6 +38,10 @@
     </url>
     <url>
          <loc>https://kyro.externref.dev/std/</loc>
+         <lastmod>2026-06-27</lastmod>
+    </url>
+    <url>
+         <loc>https://kyro.externref.dev/std/ffi/</loc>
          <lastmod>2026-06-27</lastmod>
     </url>
     <url>

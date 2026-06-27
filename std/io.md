@@ -6,23 +6,23 @@ This module contains functions related to input/output operations for communicat
 
 **Include using**
 
-```rust
+```kyro
 var io = use("std:io");
 ```
 
 ### print
 
-```rust
-print(value: Any) -> Nil
+```kyro
+print(value: Any = "") -> Nil
 ```
 
 Prints a value to the console.
 
 * **Parameters:**
-    * `value` *(Any)*: The value to be printed to the output stream.
+    * `value` *(Any, optional)*: The value to be printed to the output stream. Defaults to `""`.
 * **Returns:** *(Nil)*
 
-```rust
+```kyro
 var io = use("std:io");
 
 io.print("hello, world!\n");
@@ -30,38 +30,79 @@ io.print("hello, world!\n");
 
 ### println
 
-```rust
-println(value: Any) -> Nil
+```kyro
+println(value: Any = "") -> Nil
 ```
 
 Same as `print`, but automatically appends a newline at the end.
 
 * **Parameters:**
-    * `value` *(Any)*: The value to be printed to the output stream.
+    * `value` *(Any, optional)*: The value to be printed to the output stream. Defaults to `""`.
 * **Returns:** *(Nil)*
 
-```rust
+```kyro
 var io = use("std:io");
 
 io.println("hello, world!");
+
+// Omit the parameter to print a blank line
+io.println();
 ```
 
 ### input
 
-```rust
-input(prompt: String) -> String
+```kyro
+input(prompt: String = "") -> String
 ```
 
 Prompts the user for input and returns the entered text as a string.
 
 * **Parameters:**
-    * `prompt` *(String)*: The text displayed to the user before waiting for input.
+    * `prompt` *(String, optional)*: The text displayed to the user before waiting for input. Defaults to `""`.
 * **Returns:** *(String)* The text entered by the user.
 
-```rust
+```kyro
 var io = use("std:io");
 
 var name = io.input("enter your name: ");
 
 io.println("hello, ${name}!");
+
+// Omit prompt to wait for user input without a display prompt
+var response = io.input();
+```
+
+### clear
+
+```kyro
+clear() -> Nil
+```
+
+Clears the terminal screen and resets the cursor to the top-left corner.
+
+* **Parameters:** None
+* **Returns:** *(Nil)*
+
+```kyro
+var io = use("std:io");
+
+io.clear();
+```
+
+### write_err
+
+```kyro
+write_err(value: Any = "") -> Nil
+```
+
+Prints a value directly to the standard error stream (`stderr`), appending a newline at the end.
+
+* **Parameters:**
+    * `value` *(Any, optional)*: The value to write to standard error. Defaults to `""`.
+* **Returns:** *(Nil)*
+
+```kyro
+var io = use("std:io");
+
+io.write_err("error: process failed");
 ```

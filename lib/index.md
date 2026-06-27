@@ -4,7 +4,7 @@ title: lib modules
 
 ## library modules
 
-The `lib` module group consists of library files written in Kyro itself, located inside the `$KYRO_HOME/lib` directory. 
+The `lib` module group consists of library files written in kyro itself, located inside the `$KYRO_HOME/lib` directory. 
 
 These can be imported into your scripts using the `use` function with a `lib:<module name>` prefix and stored in a namespace.
 
@@ -23,5 +23,6 @@ var math = use("lib:math");
 
 ## index of `lib` modules
 
+* [lib:datetime](./datetime.md): extension for the [`std:time`](../std/time.md) module.
 * [lib:json](./json.md): module for encoding and decoding JSON data structures.
 * [lib:math](./math.md): mathematical constants and utility functions written in kyro.

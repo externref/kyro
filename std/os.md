@@ -6,13 +6,13 @@ This module contains functions for interacting with the operating system, comman
 
 **Include using**
 
-```rust
+```kyro
 var os = use("std:os");
 ```
 
 ### args
 
-```rust
+```kyro
 args() -> List
 ```
 
@@ -21,7 +21,7 @@ Retrieves the command-line arguments passed to the running process.
 * **Parameters:** None
 * **Returns:** *(List)* A list of strings containing the command-line arguments.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var arguments = os.args();
@@ -32,25 +32,29 @@ for (var i = 0; i < arguments.len(); i = i + 1) {
 
 ### load_dotenv
 
-```rust
-load_dotenv(path: String) -> Nil
+```kyro
+load_dotenv(path: String = ".env") -> Nil
 ```
 
 Reads a `.env` file at the specified path and loads its contents into the current process's environment variables. Comments (lines starting with `#`) and empty lines are ignored.
 
 * **Parameters:**
-    * `path` *(String)*: The path to the `.env` file to read.
+    * `path` *(String, optional)*: The path to the `.env` file to read. Defaults to `".env"`.
 * **Returns:** *(Nil)*
 
-```rust
+```kyro
 var os = use("std:os");
 
-os.load_dotenv(".env");
+// Load from default ".env" file
+os.load_dotenv();
+
+// Load from a custom path
+os.load_dotenv("config/.env.prod");
 ```
 
 ### get_env
 
-```rust
+```kyro
 get_env(key: String) -> String | Nil
 ```
 
@@ -60,7 +64,7 @@ Retrieves the value of an environment variable.
     * `key` *(String)*: The name of the environment variable.
 * **Returns:** *(String | Nil)* The value of the environment variable as a string, or `nil` if it is not set.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var port = os.get_env("PORT");
@@ -72,7 +76,7 @@ print(port);
 
 ### set_env
 
-```rust
+```kyro
 set_env(key: String, value: String) -> Nil
 ```
 
@@ -83,7 +87,7 @@ Sets the value of an environment variable for the current process.
     * `value` *(String)*: The value to assign to the environment variable.
 * **Returns:** *(Nil)*
 
-```rust
+```kyro
 var os = use("std:os");
 
 os.set_env("DATABASE_URL", "sqlite://dev.db");
@@ -91,7 +95,7 @@ os.set_env("DATABASE_URL", "sqlite://dev.db");
 
 ### get_envs
 
-```rust
+```kyro
 get_envs() -> List
 ```
 
@@ -100,7 +104,7 @@ Retrieves all environment variables currently set in the process.
 * **Parameters:** None
 * **Returns:** *(List)* A list containing key-value pairs, where each pair is a nested list represented as `[key: String, value: String]`.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var envs = os.get_envs();
@@ -115,18 +119,21 @@ for (var i = 0; i < envs.len(); i = i + 1) {
 
 ### exit
 
-```rust
-exit(code: Number) -> Nil
+```kyro
+exit(code: Number = 0) -> Nil
 ```
 
 Immediately terminates the current process with the specified exit status code.
 
 * **Parameters:**
-    * `code` *(Number)*: The exit code status to return to the operating system.
+    * `code` *(Number, optional)*: The exit code status to return to the operating system. Defaults to `0` (success).
 * **Returns:** *(Nil)*
 
-```rust
+```kyro
 var os = use("std:os");
+
+// Terminate successfully (omitting exit code defaults to 0)
+os.exit();
 
 // Terminate with a non-zero status indicating an error
 os.exit(1);
@@ -134,7 +141,7 @@ os.exit(1);
 
 ### get_pid
 
-```rust
+```kyro
 get_pid() -> Number
 ```
 
@@ -143,7 +150,7 @@ Retrieves the Process ID (PID) of the current process.
 * **Parameters:** None
 * **Returns:** *(Number)* The numeric process identifier.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var pid = os.get_pid();
@@ -152,7 +159,7 @@ print("Running with PID: " + pid);
 
 ### platform
 
-```rust
+```kyro
 platform() -> String
 ```
 
@@ -161,7 +168,7 @@ Returns a string representing the target operating system family (e.g., `"window
 * **Parameters:** None
 * **Returns:** *(String)* The operating system name.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var current_platform = os.platform();
@@ -170,7 +177,7 @@ print("Host OS: " + current_platform);
 
 ### arch
 
-```rust
+```kyro
 arch() -> String
 ```
 
@@ -179,7 +186,7 @@ Returns a string representing the host CPU architecture (e.g., `"x86_64"`, `"aar
 * **Parameters:** None
 * **Returns:** *(String)* The architecture name.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var architecture = os.arch();
@@ -188,7 +195,7 @@ print("Architecture: " + architecture);
 
 ### current_dir
 
-```rust
+```kyro
 current_dir() -> String
 ```
 
@@ -197,7 +204,7 @@ Returns the current working directory path of the running process.
 * **Parameters:** None
 * **Returns:** *(String)* The absolute path of the current directory.
 
-```rust
+```kyro
 var os = use("std:os");
 
 var cwd = os.current_dir();
@@ -206,7 +213,7 @@ print("Current directory: " + cwd);
 
 ### set_current_dir
 
-```rust
+```kyro
 set_current_dir(path: String) -> Nil
 ```
 
@@ -216,7 +223,7 @@ Changes the current working directory of the process to the specified path.
     * `path` *(String)*: The directory path to switch to.
 * **Returns:** *(Nil)*
 
-```rust
+```kyro
 var os = use("std:os");
 
 os.set_current_dir("/var/tmp");
@@ -224,28 +231,26 @@ os.set_current_dir("/var/tmp");
 
 ### execute
 
-```rust
-execute(command: String, args: List) -> Dict
+```kyro
+execute(command: String, args: List = []) -> Dict
 ```
 
 Spawns a shell command or executable as a subprocess, blocks until execution completes, and returns its output streams along with the exit status code.
 
 * **Parameters:**
     * `command` *(String)*: The executable name or system command to run.
-    * `args` *(List)*: A list of string arguments to pass to the executable.
+    * `args` *(List, optional)*: A list of string arguments to pass to the executable. Defaults to an empty list `[]`.
 * **Returns:** *(Dict)* A dictionary containing the following keys:
     * `exit_code`: *(Number)* The process exit status code (returns `-1` if the process was terminated by a signal).
     * `stdout`: *(String)* The captured stdout stream output.
     * `stderr`: *(String)* The captured stderr stream output.
 
-```rust
+```kyro
 var os = use("std:os");
 
-var result = os.execute("git", ["--version"]);
+// Run a command with arguments
+var result_args = os.execute("git", ["--version"]);
 
-if (result["exit_code"] == 0) {
-    print("Success: " + result["stdout"]);
-} else {
-    print("Failed: " + result["stderr"]);
-}
+// Run a command with default arguments (omitting args defaults to [])
+var result_no_args = os.execute("ls");
 ```
