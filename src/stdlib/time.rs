@@ -1,11 +1,37 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::time::{SystemTime, UNIX_EPOCH};
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
-    runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+        runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::{Token, TokenType},
+};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub fn get_module() -> Value {
@@ -24,7 +50,6 @@ pub fn get_module() -> Value {
     fields.insert("now".to_string(), Value::Callable(Rc::new(Now)));
     fields.insert("format".to_string(), Value::Callable(Rc::new(Format)));
     fields.insert("sleep".to_string(), Value::Callable(Rc::new(Sleep)));
-
     let instance = KyroInstance { class, fields };
     Value::Instance(Rc::new(RefCell::new(instance)))
 }
@@ -96,31 +121,25 @@ impl KyroCallable for Format {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let timestamp = match arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let timestamp = match first_arg {
             Value::Number(n) => n as u64,
             _ => {
                 return Err(RuntimeError::new(
-                    crate::parser::tokens::Token::new(
-                        crate::parser::tokens::TokenType::Identifier,
-                        "format".to_string(),
-                        None,
-                        0,
-                    ),
+                    Token::new(TokenType::Identifier, "format".to_string(), None, 0),
                     "First argument to format() must be a numeric timestamp.",
                 ));
             }
         };
 
-        let format_str = match &arguments[1] {
+        let format_str = match second_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
-                    crate::parser::tokens::Token::new(
-                        crate::parser::tokens::TokenType::Identifier,
-                        "format".to_string(),
-                        None,
-                        0,
-                    ),
+                    Token::new(TokenType::Identifier, "format".to_string(), None, 0),
                     "Second argument to format() must be a format string.",
                 ));
             }
@@ -128,7 +147,7 @@ impl KyroCallable for Format {
 
         let dt = get_datetime_components(timestamp);
 
-        let mut formatted = format_str.clone();
+        let mut formatted = format_str;
         formatted = formatted.replace("%Y", &format!("{:04}", dt.year));
         formatted = formatted.replace("%m", &format!("{:02}", dt.month));
         formatted = formatted.replace("%d", &format!("{:02}", dt.day));
@@ -178,16 +197,12 @@ impl KyroCallable for Sleep {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let ms = match arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let ms = match first_arg {
             Value::Number(n) => n,
             _ => {
                 return Err(RuntimeError::new(
-                    crate::parser::tokens::Token::new(
-                        crate::parser::tokens::TokenType::Identifier,
-                        "sleep".to_string(),
-                        None,
-                        0,
-                    ),
+                    Token::new(TokenType::Identifier, "sleep".to_string(), None, 0),
                     "Argument to sleep() must be a number of milliseconds.",
                 ));
             }
@@ -195,12 +210,7 @@ impl KyroCallable for Sleep {
 
         if ms < 0.0 {
             return Err(RuntimeError::new(
-                crate::parser::tokens::Token::new(
-                    crate::parser::tokens::TokenType::Identifier,
-                    "sleep".to_string(),
-                    None,
-                    0,
-                ),
+                Token::new(TokenType::Identifier, "sleep".to_string(), None, 0),
                 "Sleep duration cannot be negative.",
             ));
         }

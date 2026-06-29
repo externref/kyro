@@ -1,12 +1,33 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
-    runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+        runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::{Token, TokenType},
 };
-use crate::parser::tokens::{Token, TokenType};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub fn get_module() -> Value {
     let class = Rc::new(KyroClass {
@@ -44,7 +65,8 @@ impl KyroCallable for LoadFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -54,7 +76,7 @@ impl KyroCallable for LoadFn {
             }
         };
 
-        let lib = unsafe { libloading::Library::new(path) }.map_err(|e| {
+        let lib = unsafe { libloading::Library::new(&path) }.map_err(|e| {
             RuntimeError::new(
                 dummy_token(),
                 format!("Failed to load shared library '{path}': {e}"),
@@ -73,9 +95,7 @@ impl KyroCallable for LoadFn {
         let mut fields = HashMap::new();
         fields.insert(
             "bind".to_string(),
-            Value::Callable(Rc::new(BindFn {
-                library: rc_lib.clone(),
-            })),
+            Value::Callable(Rc::new(BindFn { library: rc_lib })),
         );
 
         let instance = KyroInstance { class, fields };
@@ -105,8 +125,13 @@ impl KyroCallable for BindFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let name = match &arguments[0] {
-            Value::String(s) => s.clone(),
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+        let third_arg = args_iter.next().unwrap();
+
+        let name = match first_arg {
+            Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
                     dummy_token(),
@@ -115,8 +140,8 @@ impl KyroCallable for BindFn {
             }
         };
 
-        let return_type = match &arguments[1] {
-            Value::String(s) => s.clone(),
+        let return_type = match second_arg {
+            Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
                     dummy_token(),
@@ -125,8 +150,8 @@ impl KyroCallable for BindFn {
             }
         };
 
-        let raw_param_types = match &arguments[2] {
-            Value::List(list_ref) => list_ref.borrow(),
+        let raw_param_types = match third_arg {
+            Value::List(list_ref) => list_ref,
             _ => {
                 return Err(RuntimeError::new(
                     dummy_token(),
@@ -136,7 +161,7 @@ impl KyroCallable for BindFn {
         };
 
         let mut param_types = Vec::new();
-        for val in raw_param_types.iter() {
+        for val in raw_param_types.borrow().iter() {
             match val {
                 Value::String(s) => param_types.push(s.clone()),
                 _ => {
@@ -253,12 +278,12 @@ impl KyroCallable for FfiFunction {
         let mut double_vals = Vec::with_capacity(self.param_types.len());
         let mut ptr_vals = Vec::with_capacity(self.param_types.len());
 
-        for (i, val) in arguments.iter().enumerate() {
+        for (i, val) in arguments.into_iter().enumerate() {
             let ty = &self.param_types[i];
             match ty.as_str() {
                 "int" => {
                     let n = match val {
-                        Value::Number(n) => *n as i32,
+                        Value::Number(n) => n as i32,
                         _ => {
                             return Err(RuntimeError::new(
                                 dummy_token(),
@@ -270,7 +295,7 @@ impl KyroCallable for FfiFunction {
                 }
                 "double" => {
                     let n = match val {
-                        Value::Number(n) => *n,
+                        Value::Number(n) => n,
                         _ => {
                             return Err(RuntimeError::new(
                                 dummy_token(),
@@ -290,7 +315,7 @@ impl KyroCallable for FfiFunction {
                             ));
                         }
                     };
-                    let c_str = std::ffi::CString::new(s.clone()).unwrap();
+                    let c_str = std::ffi::CString::new(s).unwrap();
                     c_strings.push(c_str);
                 }
                 _ => unreachable!(),

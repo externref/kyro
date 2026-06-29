@@ -1,3 +1,25 @@
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 pub mod ffi;
 pub mod fs;
 pub mod io;
@@ -5,18 +27,18 @@ pub mod os;
 pub mod time;
 pub mod util;
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, environment::Environment, instance::KyroInstance,
-    interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, environment::Environment, instance::KyroInstance,
+        interpreter::Interpreter, resolver::Resolver, runtime_error::RuntimeError, value::Value,
+    },
+    parser::{
+        parser::Parser,
+        scanner::Scanner,
+        tokens::{Token, TokenType},
+    },
 };
-use crate::parser::parser::Parser;
-use crate::parser::resolver::Resolver;
-use crate::parser::scanner::Scanner;
-use crate::parser::tokens::{Token, TokenType};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub struct Use;
 
@@ -30,8 +52,8 @@ impl KyroCallable for Use {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let arg_val = &arguments[0];
-        let filename = match arg_val {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let filename = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(interpreter.raise_error(
@@ -42,7 +64,7 @@ impl KyroCallable for Use {
             }
         };
 
-        if let Some(cached_module) = interpreter.modules.get(filename) {
+        if let Some(cached_module) = interpreter.modules.get(&filename) {
             return Ok(cached_module.clone());
         }
 
@@ -240,17 +262,19 @@ impl KyroCallable for DirFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let mut names = Vec::new();
-        match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let mut names: Vec<String> = Vec::new();
+
+        match &first_arg {
             Value::Instance(instance) => {
                 let inst = instance.borrow();
                 for key in inst.fields.keys() {
-                    names.push(Value::String(key.clone()));
+                    names.push(key.clone());
                 }
                 let mut current_class = Some(inst.class.clone());
                 while let Some(cls) = current_class {
                     for key in cls.methods.keys() {
-                        names.push(Value::String(key.clone()));
+                        names.push(key.clone());
                     }
                     current_class = cls.superclass.clone();
                 }
@@ -259,49 +283,42 @@ impl KyroCallable for DirFn {
                 let mut current_class = Some(class.clone());
                 while let Some(cls) = current_class {
                     for key in cls.methods.keys() {
-                        names.push(Value::String(key.clone()));
+                        names.push(key.clone());
                     }
                     current_class = cls.superclass.clone();
                 }
-                names.push(Value::String("__name__".to_string()));
+                names.push("__name__".to_string());
             }
             Value::Callable(_) => {
-                names.push(Value::String("__name__".to_string()));
+                names.push("__name__".to_string());
             }
             Value::List(_) => {
                 for method in &["len", "push", "pop"] {
-                    names.push(Value::String(method.to_string()));
+                    names.push(method.to_string());
                 }
             }
             Value::Dict(_) => {
                 for method in &["len", "keys", "remove"] {
-                    names.push(Value::String(method.to_string()));
+                    names.push(method.to_string());
                 }
             }
             Value::String(_) => {
                 for method in &["len", "slice", "split"] {
-                    names.push(Value::String(method.to_string()));
+                    names.push(method.to_string());
                 }
             }
             Value::Number(_) => {
                 for method in &["floor", "ceil", "round", "abs", "to_string"] {
-                    names.push(Value::String(method.to_string()));
+                    names.push(method.to_string());
                 }
             }
             _ => {}
         }
 
-        let mut str_names: Vec<String> = names
-            .into_iter()
-            .map(|v| match v {
-                Value::String(s) => s,
-                _ => unreachable!(),
-            })
-            .collect();
-        str_names.sort();
-        str_names.dedup();
+        names.sort();
+        names.dedup();
 
-        let deduped_vals: Vec<Value> = str_names.into_iter().map(Value::String).collect();
+        let deduped_vals: Vec<Value> = names.into_iter().map(Value::String).collect();
         Ok(Value::List(Rc::new(RefCell::new(deduped_vals))))
     }
 
@@ -326,7 +343,8 @@ impl KyroCallable for IdFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let address = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let address = match &first_arg {
             Value::Instance(instance) => Rc::as_ptr(instance) as usize,
             Value::List(list) => Rc::as_ptr(list) as usize,
             Value::Dict(dict) => Rc::as_ptr(dict) as usize,
@@ -359,7 +377,11 @@ impl KyroCallable for IsInstanceFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let target_class = match &arguments[1] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let target_class = match &second_arg {
             Value::Class(cls) => cls,
             _ => {
                 return Err(interpreter.raise_error(
@@ -370,7 +392,7 @@ impl KyroCallable for IsInstanceFn {
             }
         };
 
-        let instance = match &arguments[0] {
+        let instance = match &first_arg {
             Value::Instance(inst) => inst,
             _ => return Ok(Value::Bool(false)),
         };

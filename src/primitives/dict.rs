@@ -1,11 +1,32 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::Token,
 };
-use crate::parser::tokens::Token;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub fn get_dict_method(
     dict: Rc<RefCell<HashMap<String, Value>>>,
@@ -63,11 +84,12 @@ impl KyroCallable for KeysFn {
         _interpreter: &mut Interpreter,
         _arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let borrowed = self.dict.borrow();
-        let mut keys_list = Vec::new();
-        for key in borrowed.keys() {
-            keys_list.push(Value::String(key.clone()));
-        }
+        let keys_list: Vec<Value> = self
+            .dict
+            .borrow()
+            .keys()
+            .map(|key| Value::String(key.clone()))
+            .collect();
         Ok(Value::List(Rc::new(RefCell::new(keys_list))))
     }
 
@@ -90,11 +112,7 @@ impl KyroCallable for ValuesFn {
         _interpreter: &mut Interpreter,
         _arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let borrowed = self.dict.borrow();
-        let mut vals_list = Vec::new();
-        for val in borrowed.values() {
-            vals_list.push(val.clone());
-        }
+        let vals_list: Vec<Value> = self.dict.borrow().values().cloned().collect();
         Ok(Value::List(Rc::new(RefCell::new(vals_list))))
     }
 
@@ -141,8 +159,9 @@ impl KyroCallable for RemoveFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let key_str = match &arguments[0] {
-            Value::String(s) => s.clone(),
+        let first_arg = arguments.into_iter().next().unwrap();
+        let key_str = match first_arg {
+            Value::String(s) => s,
             _ => {
                 return Err(interpreter.raise_error(
                     "TypeError",

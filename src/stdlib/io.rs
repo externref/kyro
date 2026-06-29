@@ -1,13 +1,38 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::io::{self, Write};
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
-    runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+        runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::{Token, TokenType},
 };
-use crate::parser::tokens::{Token, TokenType};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    io::{self, Write},
+    rc::Rc,
+};
 
 pub fn get_module() -> Value {
     let class = Rc::new(KyroClass {
@@ -40,7 +65,8 @@ impl KyroCallable for Print {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let str_val = interpreter.stringify(&arguments[0]);
+        let first_arg = arguments.into_iter().next().unwrap();
+        let str_val = interpreter.stringify(&first_arg);
         print!("{}", str_val);
         let _ = io::stdout().flush();
         Ok(Value::Nil)
@@ -79,7 +105,8 @@ impl KyroCallable for Println {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let str_val = interpreter.stringify(&arguments[0]);
+        let first_arg = arguments.into_iter().next().unwrap();
+        let str_val = interpreter.stringify(&first_arg);
         println!("{}", str_val);
         Ok(Value::Nil)
     }
@@ -117,7 +144,8 @@ impl KyroCallable for Input {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let str_val = interpreter.stringify(&arguments[0]);
+        let first_arg = arguments.into_iter().next().unwrap();
+        let str_val = interpreter.stringify(&first_arg);
         print!("{}", str_val);
 
         if let Err(e) = io::stdout().flush() {
@@ -199,7 +227,8 @@ impl KyroCallable for WriteErr {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let str_val = interpreter.stringify(&arguments[0]);
+        let first_arg = arguments.into_iter().next().unwrap();
+        let str_val = interpreter.stringify(&first_arg);
         eprintln!("{}", str_val);
         Ok(Value::Nil)
     }

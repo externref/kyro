@@ -1,4 +1,27 @@
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 use crate::kyro::Kyro;
+use std::fmt::Write as _;
 
 const FORMATTER_SRC: &str = include_str!("formatter.kyro");
 const VERSION: &str = include_str!(".version");
@@ -37,7 +60,14 @@ pub fn print_help() {
 }
 
 pub fn init_project() -> std::io::Result<()> {
-    let default_main = "var io = use(\"std:io\");\n\nfn main() {\n    io.println(\"hello, world!\");\n}\n\nmain();\n";
+    let default_main = r#"var io = use("std:io");
+
+fn main() {
+    io.println("hello, world!");
+}
+
+main();
+"#;
     std::fs::write("main.kyro", default_main)?;
     println!("\x1b[1;32msuccess\x1b[0m: initialized a new kyro project with 'main.kyro'.");
     Ok(())
@@ -58,7 +88,8 @@ pub fn format_code(specific_file: Option<&str>) -> std::io::Result<()> {
         }
         files.push(file.to_string());
     } else {
-        for entry in std::fs::read_dir(".")? {
+        let entries = std::fs::read_dir(".")?;
+        for entry in entries {
             let entry = entry?;
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |ext| ext == "kyro") {
@@ -79,8 +110,8 @@ pub fn format_code(specific_file: Option<&str>) -> std::io::Result<()> {
     script.push_str("\n\nvar io = use(\"std:io\");\n");
 
     for file in &files {
-        script.push_str(&format!("io.println(\"formatting {file}...\");\n"));
-        script.push_str(&format!("format_file(\"{file}\");\n"));
+        let _ = writeln!(script, "io.println(\"formatting {file}...\");");
+        let _ = writeln!(script, "format_file(\"{file}\");");
     }
 
     let temp_file = ".kyro_tmp_fmt.kyro";

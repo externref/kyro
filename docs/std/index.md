@@ -25,7 +25,7 @@ var io = use("std:io");
 
 * [std:ffi](./ffi.md): implementation of foreign function interfaces to call C functions.
 * [std:fs](./fs.md): file system operation related functions and variables.
-* [std:io](./io.md): module with functions for taking inputs and outputs to and from console. 
+* [std:io](./io.md): module with functions for taking inputs and outputs to and from console.
 * [std:os](./os.md): functions and classes handling OS and environment related operations.
 * [std:time](./time.md): module with system clock and time related functions.
-* [std:util](./util.md): utility functions for conversions, shortcuts and language features. 
+* [std:util](./util.md): utility functions for conversions, shortcuts and language features.

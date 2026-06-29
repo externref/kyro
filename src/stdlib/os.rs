@@ -1,12 +1,33 @@
-use crate::parser::tokens::{Token, TokenType};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
-    runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+        runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::{Token, TokenType},
 };
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub fn get_module() -> Value {
     let class = Rc::new(KyroClass {
@@ -64,7 +85,7 @@ impl KyroCallable for ArgsFn {
         _interpreter: &mut Interpreter,
         _arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let args: Vec<Value> = std::env::args().map(|s| Value::String(s)).collect();
+        let args: Vec<Value> = std::env::args().map(Value::String).collect();
         Ok(Value::List(Rc::new(RefCell::new(args))))
     }
 
@@ -85,12 +106,13 @@ impl KyroCallable for LoadDotenvFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => return Err(RuntimeError::new(dummy_token(), "Path must be a string.")),
         };
 
-        let content = std::fs::read_to_string(path).map_err(|e| {
+        let content = std::fs::read_to_string(&path).map_err(|e| {
             RuntimeError::new(dummy_token(), format!("Failed to read dotenv file: {}", e))
         })?;
 
@@ -144,7 +166,8 @@ impl KyroCallable for GetEnvFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let key = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let key = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -181,11 +204,15 @@ impl KyroCallable for SetEnvFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let key = match &arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let key = match first_arg {
             Value::String(s) => s,
             _ => return Err(RuntimeError::new(dummy_token(), "Key must be a string.")),
         };
-        let value = match &arguments[1] {
+        let value = match second_arg {
             Value::String(s) => s,
             _ => return Err(RuntimeError::new(dummy_token(), "Value must be a string.")),
         };
@@ -243,7 +270,8 @@ impl KyroCallable for ExitFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let code = match arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let code = match first_arg {
             Value::Number(n) => n as i32,
             _ => {
                 return Err(RuntimeError::new(
@@ -374,12 +402,13 @@ impl KyroCallable for SetCurrentDirFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => return Err(RuntimeError::new(dummy_token(), "Path must be a string.")),
         };
 
-        match std::env::set_current_dir(path) {
+        match std::env::set_current_dir(&path) {
             Ok(_) => Ok(Value::Nil),
             Err(e) => Err(RuntimeError::new(
                 dummy_token(),
@@ -409,7 +438,11 @@ impl KyroCallable for ExecuteFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let command = match &arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let command = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -419,8 +452,8 @@ impl KyroCallable for ExecuteFn {
             }
         };
 
-        let args_list = match &arguments[1] {
-            Value::List(list_ref) => list_ref.borrow(),
+        let args_list = match second_arg {
+            Value::List(list_ref) => list_ref,
             _ => {
                 return Err(RuntimeError::new(
                     dummy_token(),
@@ -430,7 +463,7 @@ impl KyroCallable for ExecuteFn {
         };
 
         let mut cmd_args = Vec::new();
-        for val in args_list.iter() {
+        for val in args_list.borrow().iter() {
             match val {
                 Value::String(s) => cmd_args.push(s.clone()),
                 _ => {
@@ -442,7 +475,10 @@ impl KyroCallable for ExecuteFn {
             }
         }
 
-        match std::process::Command::new(command).args(&cmd_args).output() {
+        match std::process::Command::new(&command)
+            .args(&cmd_args)
+            .output()
+        {
             Ok(output) => {
                 let exit_code = output.status.code().unwrap_or(-1) as f64;
                 let stdout = String::from_utf8_lossy(&output.stdout).into_owned();

@@ -1,10 +1,32 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::Token,
 };
-use crate::parser::tokens::Token;
+use std::{cell::RefCell, rc::Rc};
 
 pub fn get_list_method(list: Rc<RefCell<Vec<Value>>>, name: &Token) -> Result<Value, RuntimeError> {
     match name.lexeme.as_str() {
@@ -63,7 +85,8 @@ impl KyroCallable for PushFn {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        self.list.borrow_mut().push(arguments[0].clone());
+        let first_arg = arguments.into_iter().next().unwrap();
+        self.list.borrow_mut().push(first_arg);
         Ok(Value::Nil)
     }
 
@@ -137,7 +160,8 @@ impl KyroCallable for RemoveFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let idx = match arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let idx = match first_arg {
             Value::Number(n) => n as usize,
             _ => {
                 return Err(interpreter.raise_error(
@@ -184,8 +208,9 @@ impl KyroCallable for JoinFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let sep = match &arguments[0] {
-            Value::String(s) => s.clone(),
+        let first_arg = arguments.into_iter().next().unwrap();
+        let sep = match first_arg {
+            Value::String(s) => s,
             _ => {
                 return Err(interpreter.raise_error(
                     "TypeError",
@@ -196,10 +221,10 @@ impl KyroCallable for JoinFn {
         };
 
         let borrowed = self.list.borrow();
-        let mut parts = Vec::new();
-        for val in borrowed.iter() {
-            parts.push(interpreter.stringify(val));
-        }
+        let parts: Vec<String> = borrowed
+            .iter()
+            .map(|val| interpreter.stringify(val))
+            .collect();
 
         Ok(Value::String(parts.join(&sep)))
     }

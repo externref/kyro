@@ -6,15 +6,15 @@ theme:
   name: shadcn
   icon: assets/icon.svg
   favicon: assets/icon.svg
-  show_title: true 
+  show_title: true
   show_stargazers: true
   pygments_style:
-        light: shadcn-light
-        dark: github-dark
-  topbar_sections: false 
-  katex_options: 
-    macros: 
-      "\\RR": "\\mathbb{R}" 
+    light: shadcn-light
+    dark: github-dark
+  topbar_sections: false
+  katex_options:
+    macros:
+      "\\RR": "\\mathbb{R}"
       "\\dx": "\\mathrm{d}x"
 
 markdown_extensions:
@@ -33,20 +33,20 @@ nav:
   - Syntax: syntax.md
   - Grammar: GRAMMAR.md
   - Documentation:
-    - core.md
-    - std: 
-      - std/index.md
-      - std/ffi.md
-      - std/fs.md
-      - std/io.md
-      - std/os.md
-      - std/time.md
-      - std/util.md
-    - lib:
-      - lib/index.md
-      - lib/datetime.md
-      - lib/json.md 
-      - lib/math.md
+      - core.md
+      - std:
+          - std/index.md
+          - std/ffi.md
+          - std/fs.md
+          - std/io.md
+          - std/os.md
+          - std/time.md
+          - std/util.md
+      - lib:
+          - lib/index.md
+          - lib/datetime.md
+          - lib/json.md
+          - lib/math.md
 
 hooks:
   - docs/hooks.py

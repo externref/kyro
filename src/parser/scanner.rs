@@ -1,5 +1,26 @@
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 use crate::parser::tokens::{Literal, Token, TokenType};
-use std::collections::HashMap;
 
 pub struct Scanner {
     source: Vec<char>,
@@ -7,42 +28,17 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
-    keywords: HashMap<&'static str, TokenType>,
     pub errors: Vec<(usize, String, String)>,
 }
 
 impl Scanner {
     pub fn new(source: String, start_line: usize) -> Self {
-        let mut keywords = HashMap::new();
-        keywords.insert("and", TokenType::And);
-        keywords.insert("class", TokenType::Class);
-        keywords.insert("else", TokenType::Else);
-        keywords.insert("false", TokenType::False);
-        keywords.insert("for", TokenType::For);
-        keywords.insert("fn", TokenType::Fn);
-        keywords.insert("if", TokenType::If);
-        keywords.insert("in", TokenType::In);
-        keywords.insert("nil", TokenType::Nil);
-        keywords.insert("or", TokenType::Or);
-        keywords.insert("echo", TokenType::Echo);
-        keywords.insert("return", TokenType::Return);
-        keywords.insert("super", TokenType::Super);
-        keywords.insert("this", TokenType::This);
-        keywords.insert("true", TokenType::True);
-        keywords.insert("var", TokenType::Var);
-        keywords.insert("while", TokenType::While);
-        keywords.insert("try", TokenType::Try);
-        keywords.insert("catch", TokenType::Catch);
-        keywords.insert("throw", TokenType::Throw);
-        keywords.insert("break", TokenType::Break);
-        keywords.insert("continue", TokenType::Continue);
         Self {
             source: source.chars().collect(),
             tokens: Vec::new(),
             start: 0,
             current: 0,
             line: start_line,
-            keywords,
             errors: Vec::new(),
         }
     }
@@ -154,12 +150,8 @@ impl Scanner {
             self.advance();
         }
         let text: String = self.source[self.start..self.current].iter().collect();
-        let token_type = self
-            .keywords
-            .get(text.as_str())
-            .cloned()
-            .unwrap_or(TokenType::Identifier);
-        self.add_token(token_type);
+        let token_type = Self::keyword(&text).unwrap_or(TokenType::Identifier);
+        self.add_token_with_text(token_type, text, None);
     }
 
     fn number(&mut self) {
@@ -174,7 +166,7 @@ impl Scanner {
         }
         let text: String = self.source[self.start..self.current].iter().collect();
         let value: f64 = text.parse().unwrap();
-        self.add_token_literal(TokenType::Number, Some(Literal::Number(value)));
+        self.add_token_with_text(TokenType::Number, text, Some(Literal::Number(value)));
     }
 
     fn string(&mut self) {
@@ -213,7 +205,8 @@ impl Scanner {
         }
 
         self.advance();
-        self.add_token_literal(TokenType::String, Some(Literal::String(value)));
+        let text: String = self.source[self.start..self.current].iter().collect();
+        self.add_token_with_text(TokenType::String, text, Some(Literal::String(value)));
     }
 
     fn matches(&mut self, expected: char) -> bool {
@@ -254,13 +247,46 @@ impl Scanner {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_literal(token_type, None);
+        let text: String = self.source[self.start..self.current].iter().collect();
+        self.add_token_with_text(token_type, text, None);
     }
 
-    fn add_token_literal(&mut self, token_type: TokenType, literal: Option<Literal>) {
-        let text: String = self.source[self.start..self.current].iter().collect();
+    fn add_token_with_text(
+        &mut self,
+        token_type: TokenType,
+        text: String,
+        literal: Option<Literal>,
+    ) {
         self.tokens
             .push(Token::new(token_type, text, literal, self.line));
+    }
+
+    fn keyword(text: &str) -> Option<TokenType> {
+        match text {
+            "and" => Some(TokenType::And),
+            "class" => Some(TokenType::Class),
+            "else" => Some(TokenType::Else),
+            "false" => Some(TokenType::False),
+            "for" => Some(TokenType::For),
+            "fn" => Some(TokenType::Fn),
+            "if" => Some(TokenType::If),
+            "in" => Some(TokenType::In),
+            "nil" => Some(TokenType::Nil),
+            "or" => Some(TokenType::Or),
+            "echo" => Some(TokenType::Echo),
+            "return" => Some(TokenType::Return),
+            "super" => Some(TokenType::Super),
+            "this" => Some(TokenType::This),
+            "true" => Some(TokenType::True),
+            "var" => Some(TokenType::Var),
+            "while" => Some(TokenType::While),
+            "try" => Some(TokenType::Try),
+            "catch" => Some(TokenType::Catch),
+            "throw" => Some(TokenType::Throw),
+            "break" => Some(TokenType::Break),
+            "continue" => Some(TokenType::Continue),
+            _ => None,
+        }
     }
 
     fn is_digit(c: char) -> bool {

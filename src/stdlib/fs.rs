@@ -1,13 +1,33 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::path::Path;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
-    runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+        runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::{Token, TokenType},
 };
-use crate::parser::tokens::{Token, TokenType};
+use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 
 pub fn get_module() -> Value {
     let class = Rc::new(KyroClass {
@@ -52,7 +72,8 @@ impl KyroCallable for ReadFile {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -62,7 +83,7 @@ impl KyroCallable for ReadFile {
             }
         };
 
-        match std::fs::read_to_string(path) {
+        match std::fs::read_to_string(&path) {
             Ok(content) => Ok(Value::String(content)),
             Err(e) => Err(RuntimeError::new(
                 Token::new(TokenType::Identifier, "read_file".to_string(), None, 0),
@@ -92,7 +113,11 @@ impl KyroCallable for WriteFile {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -102,9 +127,9 @@ impl KyroCallable for WriteFile {
             }
         };
 
-        let content = &arguments[1].to_string();
+        let content = second_arg.to_string();
 
-        match std::fs::write(path, content) {
+        match std::fs::write(&path, content) {
             Ok(_) => Ok(Value::Nil),
             Err(e) => Err(RuntimeError::new(
                 Token::new(TokenType::Identifier, "write_file".to_string(), None, 0),
@@ -146,7 +171,8 @@ impl KyroCallable for Exists {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -156,7 +182,7 @@ impl KyroCallable for Exists {
             }
         };
 
-        let path_exists = Path::new(path).exists();
+        let path_exists = Path::new(&path).exists();
         Ok(Value::Bool(path_exists))
     }
 
@@ -181,7 +207,8 @@ impl KyroCallable for RemoveFile {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -191,7 +218,7 @@ impl KyroCallable for RemoveFile {
             }
         };
 
-        match std::fs::remove_file(path) {
+        match std::fs::remove_file(&path) {
             Ok(_) => Ok(Value::Nil),
             Err(e) => Err(RuntimeError::new(
                 Token::new(TokenType::Identifier, "remove_file".to_string(), None, 0),
@@ -221,7 +248,11 @@ impl KyroCallable for CreateDir {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -231,7 +262,7 @@ impl KyroCallable for CreateDir {
             }
         };
 
-        let recursive = match arguments[1] {
+        let recursive = match second_arg {
             Value::Bool(b) => b,
             _ => {
                 return Err(RuntimeError::new(
@@ -242,9 +273,9 @@ impl KyroCallable for CreateDir {
         };
 
         let result = if recursive {
-            std::fs::create_dir_all(path)
+            std::fs::create_dir_all(&path)
         } else {
-            std::fs::create_dir(path)
+            std::fs::create_dir(&path)
         };
 
         match result {
@@ -289,7 +320,8 @@ impl KyroCallable for ReadDir {
         _interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let path = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let path = match first_arg {
             Value::String(s) => s,
             _ => {
                 return Err(RuntimeError::new(
@@ -299,15 +331,12 @@ impl KyroCallable for ReadDir {
             }
         };
 
-        match std::fs::read_dir(path) {
+        match std::fs::read_dir(&path) {
             Ok(entries) => {
-                let mut list = Vec::new();
-                for entry in entries {
-                    if let Ok(entry) = entry {
-                        let name = entry.file_name().to_string_lossy().into_owned();
-                        list.push(Value::String(name));
-                    }
-                }
+                let list: Vec<Value> = entries
+                    .filter_map(|entry| entry.ok())
+                    .map(|entry| Value::String(entry.file_name().to_string_lossy().into_owned()))
+                    .collect();
                 Ok(Value::List(Rc::new(RefCell::new(list))))
             }
             Err(e) => Err(RuntimeError::new(

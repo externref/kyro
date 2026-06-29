@@ -1,9 +1,31 @@
-use super::{
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::parser::{
     expr::{Argument, Expr},
+    scanner::Scanner,
     stmt::{Parameter, Stmt},
     tokens::{Literal, Token, TokenType},
 };
-use crate::parser::scanner::Scanner;
 
 #[derive(Debug)]
 pub struct ParseError;
@@ -46,25 +68,29 @@ impl Parser {
             }
         }
 
-        if !statements.is_empty() {
-            if let Stmt::Expression(Expr::Literal(Literal::String(s))) = &statements[0] {
-                self.module_doc = Some(s.clone());
-                statements.remove(0);
-            }
+        if let Some(Stmt::Expression(Expr::Literal(Literal::String(s)))) = statements.first() {
+            self.module_doc = Some(s.clone());
+            statements.remove(0);
         }
 
         statements
     }
 
     fn declaration(&mut self) -> Option<Stmt> {
-        let result = if self.match_token(&[TokenType::Fn]) {
-            self.function("function")
-        } else if self.match_token(&[TokenType::Var]) {
-            self.var_declaration()
-        } else if self.match_token(&[TokenType::Class]) {
-            self.class_declaration()
-        } else {
-            self.statement()
+        let result = match self.peek().r#type {
+            TokenType::Fn => {
+                self.advance();
+                self.function("function")
+            }
+            TokenType::Var => {
+                self.advance();
+                self.var_declaration()
+            }
+            TokenType::Class => {
+                self.advance();
+                self.class_declaration()
+            }
+            _ => self.statement(),
         };
 
         match result {
@@ -151,11 +177,9 @@ impl Parser {
         )?;
         let mut body = self.block()?;
         let mut doc = None;
-        if !body.is_empty() {
-            if let Stmt::Expression(Expr::Literal(Literal::String(s))) = &body[0] {
-                doc = Some(s.clone());
-                body.remove(0);
-            }
+        if let Some(Stmt::Expression(Expr::Literal(Literal::String(s)))) = body.first() {
+            doc = Some(s.clone());
+            body.remove(0);
         }
 
         Ok(Stmt::Function {
@@ -166,18 +190,23 @@ impl Parser {
         })
     }
 
+    fn destructure_names(&mut self) -> Result<Vec<Token>, ParseError> {
+        let mut names = Vec::new();
+        loop {
+            names.push(self.consume(
+                TokenType::Identifier,
+                "Expect variable name in destructuring.",
+            )?);
+            if !self.match_token(&[TokenType::Comma]) {
+                break;
+            }
+        }
+        Ok(names)
+    }
+
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
         if self.match_token(&[TokenType::LeftBracket]) {
-            let mut names = Vec::new();
-            loop {
-                names.push(self.consume(
-                    TokenType::Identifier,
-                    "Expect variable name in destructuring.",
-                )?);
-                if !self.match_token(&[TokenType::Comma]) {
-                    break;
-                }
-            }
+            let names = self.destructure_names()?;
             self.consume(
                 TokenType::RightBracket,
                 "Expect ']' after destructuring variables.",
@@ -196,16 +225,7 @@ impl Parser {
         }
 
         if self.match_token(&[TokenType::LeftBrace]) {
-            let mut names = Vec::new();
-            loop {
-                names.push(self.consume(
-                    TokenType::Identifier,
-                    "Expect variable name in destructuring.",
-                )?);
-                if !self.match_token(&[TokenType::Comma]) {
-                    break;
-                }
-            }
+            let names = self.destructure_names()?;
             self.consume(
                 TokenType::RightBrace,
                 "Expect '}' after destructuring variables.",
@@ -240,37 +260,49 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, ParseError> {
-        if self.match_token(&[TokenType::Echo]) {
-            return self.echo_statement();
+        match self.peek().r#type {
+            TokenType::Echo => {
+                self.advance();
+                self.echo_statement()
+            }
+            TokenType::Break => {
+                self.advance();
+                self.break_statement()
+            }
+            TokenType::Continue => {
+                self.advance();
+                self.continue_statement()
+            }
+            TokenType::Try => {
+                self.advance();
+                self.try_statement()
+            }
+            TokenType::Throw => {
+                self.advance();
+                self.throw_statement()
+            }
+            TokenType::LeftBrace => {
+                self.advance();
+                Ok(Stmt::Block(self.block()?))
+            }
+            TokenType::If => {
+                self.advance();
+                self.if_statement()
+            }
+            TokenType::While => {
+                self.advance();
+                self.while_statement()
+            }
+            TokenType::For => {
+                self.advance();
+                self.for_statement()
+            }
+            TokenType::Return => {
+                self.advance();
+                self.return_statement()
+            }
+            _ => self.expression_statement(),
         }
-        if self.match_token(&[TokenType::Break]) {
-            return self.break_statement();
-        }
-        if self.match_token(&[TokenType::Continue]) {
-            return self.continue_statement();
-        }
-        if self.match_token(&[TokenType::Try]) {
-            return self.try_statement();
-        }
-        if self.match_token(&[TokenType::Throw]) {
-            return self.throw_statement();
-        }
-        if self.match_token(&[TokenType::LeftBrace]) {
-            return Ok(Stmt::Block(self.block()?));
-        }
-        if self.match_token(&[TokenType::If]) {
-            return self.if_statement();
-        }
-        if self.match_token(&[TokenType::While]) {
-            return self.while_statement();
-        }
-        if self.match_token(&[TokenType::For]) {
-            return self.for_statement();
-        }
-        if self.match_token(&[TokenType::Return]) {
-            return self.return_statement();
-        }
-        self.expression_statement()
     }
 
     fn try_statement(&mut self) -> Result<Stmt, ParseError> {
@@ -743,6 +775,21 @@ impl Parser {
             paren,
             arguments,
         })
+    }
+
+    fn _unary(&mut self) -> Result<Expr, ParseError> {
+        if self.match_token(&[TokenType::Bang, TokenType::Minus, TokenType::Tilde]) {
+            let operator = self.previous().clone();
+
+            let right = self.unary()?;
+
+            return Ok(Expr::Unary {
+                operator,
+                right: Box::new(right),
+            });
+        }
+
+        self.call()
     }
 
     fn unary(&mut self) -> Result<Expr, ParseError> {

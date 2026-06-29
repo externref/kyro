@@ -1,14 +1,35 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
-    runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, class::KyroClass, instance::KyroInstance, interpreter::Interpreter,
+        runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::{Token, TokenType},
 };
-use crate::parser::tokens::{Token, TokenType};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-static VERSION: &'static str = include_str!("../.version");
+static VERSION: &str = include_str!("../.version");
 
 pub fn get_module() -> Value {
     let class = Rc::new(KyroClass {
@@ -47,7 +68,8 @@ impl KyroCallable for ToStringFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let str_val = interpreter.stringify(&arguments[0]);
+        let first_arg = arguments.into_iter().next().unwrap();
+        let str_val = interpreter.stringify(&first_arg);
         Ok(Value::String(str_val))
     }
 
@@ -72,9 +94,10 @@ impl KyroCallable for ToNumber {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
+        let first_arg = arguments.into_iter().next().unwrap();
         let token = Token::new(TokenType::Identifier, "to_number".to_string(), None, 0);
-        match &arguments[0] {
-            Value::Number(n) => Ok(Value::Number(*n)),
+        match first_arg {
+            Value::Number(n) => Ok(Value::Number(n)),
             Value::String(s) => match s.trim().parse::<f64>() {
                 Ok(n) => Ok(Value::Number(n)),
                 Err(_) => Err(interpreter.raise_error(
@@ -84,7 +107,7 @@ impl KyroCallable for ToNumber {
                 )),
             },
             Value::Bool(b) => {
-                if *b {
+                if b {
                     Ok(Value::Number(1.0))
                 } else {
                     Ok(Value::Number(0.0))
@@ -156,7 +179,8 @@ impl KyroCallable for TypeOfFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let class_name = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let class_name = match &first_arg {
             Value::Nil => "Nil",
             Value::Bool(_) => "Bool",
             Value::Number(_) => "Number",
@@ -198,7 +222,12 @@ impl KyroCallable for RangeFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let start = match arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+        let third_arg = args_iter.next().unwrap();
+
+        let start = match first_arg {
             Value::Number(n) => n,
             _ => {
                 return Err(interpreter.raise_error(
@@ -209,7 +238,7 @@ impl KyroCallable for RangeFn {
             }
         };
 
-        let end = match arguments[1] {
+        let end = match second_arg {
             Value::Number(n) => n,
             _ => {
                 return Err(interpreter.raise_error(
@@ -220,7 +249,7 @@ impl KyroCallable for RangeFn {
             }
         };
 
-        let step = match arguments[2] {
+        let step = match third_arg {
             Value::Number(n) => n,
             _ => {
                 return Err(interpreter.raise_error(

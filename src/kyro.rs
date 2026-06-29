@@ -1,7 +1,30 @@
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 use crate::{
-    interpreter::{interpreter::Interpreter, runtime_error::RuntimeError},
-    parser::{parser::Parser, resolver::Resolver, scanner::Scanner},
+    interpreter::{interpreter::Interpreter, resolver::Resolver, runtime_error::RuntimeError},
+    parser::{parser::Parser, scanner::Scanner},
 };
+use std::io::BufRead;
 use std::io::Write;
 
 pub struct Kyro {
@@ -10,8 +33,8 @@ pub struct Kyro {
     source_lines: Vec<String>,
 }
 
-impl Kyro {
-    pub fn new() -> Kyro {
+impl Default for Kyro {
+    fn default() -> Self {
         let mut kyro = Kyro {
             had_error: false,
             interpreter: Interpreter::new(),
@@ -19,6 +42,12 @@ impl Kyro {
         };
         kyro.bootstrap();
         kyro
+    }
+}
+
+impl Kyro {
+    pub fn new() -> Kyro {
+        Self::default()
     }
 
     fn bootstrap(&mut self) {
@@ -80,11 +109,14 @@ impl Kyro {
         println!("kyro interactive prompt. press ctrl+d to exit.");
 
         let stdin = std::io::stdin();
+        let mut stdin_lock = stdin.lock();
+        let mut line = String::new();
+
         loop {
             print!("> ");
             std::io::stdout().flush()?;
-            let mut line = String::new();
-            let bytes_read = stdin.read_line(&mut line)?;
+            line.clear();
+            let bytes_read = stdin_lock.read_line(&mut line)?;
             if bytes_read == 0 {
                 break;
             }

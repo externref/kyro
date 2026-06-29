@@ -1,7 +1,33 @@
-use super::expr::{Argument, Expr, ExprVisitor};
-use super::stmt::{Parameter, Stmt};
-use super::tokens::Token;
-use crate::interpreter::interpreter::Interpreter;
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::interpreter::Interpreter,
+    parser::{
+        expr::{Argument, Expr, ExprVisitor},
+        stmt::{Parameter, Stmt},
+        tokens::Token,
+    },
+};
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -286,13 +312,10 @@ impl<'a> Resolver<'a> {
     }
 
     fn declare(&mut self, name: &Token) {
-        let mut already_exists = false;
-
-        if let Some(scope) = self.scopes.last() {
-            if scope.contains_key(&name.lexeme) {
-                already_exists = true;
-            }
-        }
+        let already_exists = self
+            .scopes
+            .last()
+            .map_or(false, |scope| scope.contains_key(&name.lexeme));
 
         if already_exists {
             self.error(name, "Already a variable with this name in this scope.");

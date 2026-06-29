@@ -1,10 +1,32 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+// MIT License
 
-use crate::interpreter::{
-    callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+use crate::{
+    interpreter::{
+        callable::KyroCallable, interpreter::Interpreter, runtime_error::RuntimeError, value::Value,
+    },
+    parser::tokens::Token,
 };
-use crate::parser::tokens::Token;
+use std::{cell::RefCell, rc::Rc};
 
 pub fn get_string_method(s: String, name: &Token) -> Result<Value, RuntimeError> {
     match name.lexeme.as_str() {
@@ -68,7 +90,11 @@ impl KyroCallable for SliceFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let start = match arguments[0] {
+        let mut args_iter = arguments.into_iter();
+        let first_arg = args_iter.next().unwrap();
+        let second_arg = args_iter.next().unwrap();
+
+        let start = match first_arg {
             Value::Number(n) => n as usize,
             _ => {
                 return Err(interpreter.raise_error(
@@ -79,7 +105,7 @@ impl KyroCallable for SliceFn {
             }
         };
 
-        let end = match arguments[1] {
+        let end = match second_arg {
             Value::Number(n) => n as usize,
             _ => {
                 return Err(interpreter.raise_error(
@@ -139,7 +165,8 @@ impl KyroCallable for SplitFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let separator = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let separator = match &first_arg {
             Value::String(sep) => sep,
             _ => {
                 return Err(interpreter.raise_error(
@@ -217,7 +244,8 @@ impl KyroCallable for ContainsFn {
         interpreter: &mut Interpreter,
         arguments: Vec<Value>,
     ) -> Result<Value, RuntimeError> {
-        let substring = match &arguments[0] {
+        let first_arg = arguments.into_iter().next().unwrap();
+        let substring = match &first_arg {
             Value::String(sub) => sub,
             _ => {
                 return Err(interpreter.raise_error(

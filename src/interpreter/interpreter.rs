@@ -1,18 +1,36 @@
-use super::environment::Environment;
-use crate::interpreter::class::KyroClass;
-use crate::interpreter::instance::KyroInstance;
-use crate::parser::stmt::Parameter;
-use crate::primitives;
+// MIT License
+
+// Copyright (c) 2026 sarthak
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 use crate::{
     interpreter::{
-        callable::KyroCallable, environment::EnvRef, function::KyroFunction,
-        runtime_error::RuntimeError, value::Value,
+        callable::KyroCallable, class::KyroClass, environment::EnvRef, environment::Environment,
+        function::KyroFunction, instance::KyroInstance, runtime_error::RuntimeError, value::Value,
     },
     parser::{
         expr::{Argument, Expr, ExprVisitor},
-        stmt::Stmt,
+        stmt::{Parameter, Stmt},
         tokens::{Literal, Token, TokenType},
     },
+    primitives,
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -23,7 +41,7 @@ pub struct Interpreter {
     pub modules: HashMap<String, Value>,
 }
 
-static VERSION: &'static str = include_str!("../.version");
+static VERSION: &str = include_str!("../.version");
 
 impl Interpreter {
     pub fn new() -> Self {
@@ -356,23 +374,13 @@ impl Interpreter {
             Stmt::Continue { keyword: _ } => {
                 return Err(RuntimeError::Continue);
             }
-            Stmt::Function {
-                name: _,
-                params: _,
-                body: _,
-                doc,
-            } => {
+            Stmt::Function { name, doc, .. } => {
                 let function =
                     KyroFunction::new(stmt.clone(), self.environment.clone(), false, doc.clone());
 
-                let name = match stmt {
-                    Stmt::Function { name, .. } => name.lexeme.clone(),
-                    _ => unreachable!(),
-                };
-
                 self.environment
                     .borrow_mut()
-                    .define(name, Value::Callable(Rc::new(function)));
+                    .define(name.lexeme.clone(), Value::Callable(Rc::new(function)));
             }
             Stmt::Return { value, .. } => {
                 let val = if let Some(expr) = value {
@@ -972,10 +980,11 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
 
                 if name.lexeme == "__doc__" {
                     let class_borrow = instance.borrow();
-                    let doc_val = match &class_borrow.class.doc {
-                        Some(doc_str) => Value::String(doc_str.clone()),
-                        None => Value::Nil,
-                    };
+                    let doc_val = class_borrow
+                        .class
+                        .doc
+                        .as_ref()
+                        .map_or(Value::Nil, |doc_str| Value::String(doc_str.clone()));
                     return Ok(doc_val);
                 }
 
@@ -1002,10 +1011,9 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 if name.lexeme == "__name__" {
                     Ok(Value::String(callable.name().to_string()))
                 } else if name.lexeme == "__doc__" {
-                    let doc_val = match callable.doc() {
-                        Some(doc_str) => Value::String(doc_str.to_string()),
-                        None => Value::Nil,
-                    };
+                    let doc_val = callable
+                        .doc()
+                        .map_or(Value::Nil, |doc_str| Value::String(doc_str.to_string()));
                     Ok(doc_val)
                 } else {
                     Err(self.raise_error(
@@ -1019,10 +1027,10 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
                 if name.lexeme == "__name__" {
                     Ok(Value::String(class.name.clone()))
                 } else if name.lexeme == "__doc__" {
-                    let doc_val = match &class.doc {
-                        Some(doc_str) => Value::String(doc_str.clone()),
-                        None => Value::Nil,
-                    };
+                    let doc_val = class
+                        .doc
+                        .as_ref()
+                        .map_or(Value::Nil, |doc_str| Value::String(doc_str.clone()));
                     Ok(doc_val)
                 } else {
                     Err(self.raise_error(
@@ -1122,11 +1130,9 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
     }
 
     fn visit_list(&mut self, elements: &[Expr], _id: usize) -> Result<Value, RuntimeError> {
-        let mut vals = Vec::new();
-        for elem in elements {
-            vals.push(elem.accept(self)?);
-        }
-        Ok(Value::List(Rc::new(RefCell::new(vals))))
+        let vals: Result<Vec<Value>, RuntimeError> =
+            elements.iter().map(|elem| elem.accept(self)).collect();
+        Ok(Value::List(Rc::new(RefCell::new(vals?))))
     }
 
     fn visit_dict(&mut self, entries: &[(Expr, Expr)], _id: usize) -> Result<Value, RuntimeError> {
@@ -1134,9 +1140,9 @@ impl ExprVisitor<Result<Value, RuntimeError>> for Interpreter {
         for (key_expr, val_expr) in entries {
             let key_val = key_expr.accept(self)?;
             let val_val = val_expr.accept(self)?;
-            let key_str = match &key_val {
-                Value::String(s) => s.clone(),
-                _ => key_val.to_string(),
+            let key_str = match key_val {
+                Value::String(s) => s,
+                other => other.to_string(),
             };
             map.insert(key_str, val_val);
         }
